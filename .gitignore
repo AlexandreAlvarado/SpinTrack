@@ -1,0 +1,28 @@
+node_modules
+.next
+out
+.env.local
+.env*.local
+.env
+.env.*
+!.env.example
+# Referencias y documentación privada: incorporar solo con revisión explícita.
+/documentacion/referencias/
+/documentacion/privados/
+*.log
+.DS_Store
+*.tsbuildinfo
+# Despliegue y compilaciones
+.vercel/
+.turbo/
+coverage/
+dist/
+build/
+
+# Archivos privados y certificados
+*.pem
+*.key
+
+# Archivos temporales de pruebas
+test-results/
+playwright-report/

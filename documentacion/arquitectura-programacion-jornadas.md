@@ -1,6 +1,6 @@
 # Programación simultánea de jornadas — propuesta para revisión
 
-Estado: diseño, no implementado. No se ha creado la migración 004 ni ejecutado SQL en Supabase.
+Estado: programación en diseño, no implementada; futura migración 005. La migración 004 corresponde a inscripciones y está preparada para revisión, sin aplicar en Supabase.
 
 ## 1. Fuentes y límites
 
@@ -27,10 +27,10 @@ La futura agenda de mesas, encuentros y árbitros NO existe todavía. La vista a
 - Ausencia de tarifa, cupo, plazos o inicio no se reemplaza por valores supuestos. Un borrador puede estar incompleto.
 - Mostrar advertencias sobre registros históricos incoherentes. No corregirlos al consultar. Permitir retirar publicación/desactivar sin cambiar sus condiciones cuando lo permitan los triggers existentes; no usar esta vía para introducir plazos inválidos o volver a activar configuraciones incoherentes.
 - Los triggers de 003 siguen siendo autoridad final. En particular, un cierre posterior a un inicio ya aprobado puede ser rechazado incluso al intentar retirar publicación. No se promete eludir esa restricción; requiere revisar la programación deportiva y el orden de corrección con el Juez General.
-- La comprobación nueva del día local se realiza en la aplicación. **Todavía no es una restricción PostgreSQL**: Table Editor o una escritura directa autorizada puede eludirla. Para la futura 004 se proponen triggers aditivos en competencias, control deportivo y cambios del día de la fecha, bajo el mismo bloqueo transaccional existente. Auditar primero los datos actuales; no reinterpretarlos ni corregirlos en masa.
+- La comprobación nueva del día local se realiza en la aplicación. **Todavía no es una restricción PostgreSQL sobre la configuración**: Table Editor o una escritura directa autorizada puede eludirla. 004 verifica el día local al solicitar y aceptar inscripciones. Para la futura 005 se proponen triggers aditivos en competencias, control deportivo y cambios del día de la fecha, bajo el mismo bloqueo transaccional existente. Auditar primero los datos actuales; no reinterpretarlos ni corregirlos en masa.
 - No forzar automáticamente el jueves a las 20:00 del documento sobre todas las jornadas: confirmar vigencia y excepciones con la Liga. La aplicación no decide una excepción deportiva ni altera el dato existente.
 
-## 4. Modelo propuesto para 004
+## 4. Modelo propuesto para 005
 
 Conservar la jerarquía: `temporadas → fechas → competencias → partidos`. Una categoría no genera otra fecha. Las tablas siguientes son propuestas, no tablas ya creadas.
 
@@ -54,7 +54,7 @@ Proponer columnas aditivas `jugadores.persona_programacion_id` y `perfiles.perso
 
 La futura preparación de datos necesitará aprobación y auditoría: crear una identidad por jugador existente y asociar perfiles solo cuando exista un vínculo explícito verificable. Nunca fusionar por nombre. Jugadores sin cuenta siguen siendo válidos. Un árbitro externo puede tener persona/perfil sin registro de jugador; si tampoco tiene cuenta, exigir referencia nominal privada y verificación administrativa antes de designarlo. La RPC comprobará que toda persona designada dispone de fuente de identidad verificable. Proteger la identidad de las reservas históricas; no reasignarla silenciosamente al cambiar una cuenta.
 
-Si hay duplicados reales desconocidos en el registro, ninguna restricción puede adivinar que dos IDs son la misma persona. Resolver identidad explícitamente antes de programar, conservando historial; no incorporar una fusión automática en 004.
+Si hay duplicados reales desconocidos en el registro, ninguna restricción puede adivinar que dos IDs son la misma persona. Resolver identidad explícitamente antes de programar, conservando historial; no incorporar una fusión automática en 005.
 
 ### Relaciones e integridad
 
@@ -86,9 +86,9 @@ erDiagram
 
 Las dos relaciones hacia recursos son alternativas, no dos vínculos simultáneos. `programaciones_partido` tiene muchas revisiones históricas, pero solo una vigente. La cardinalidad de participantes queda reforzada a exactamente dos antes de programar/iniciar, mediante validación diferida y RPC, no solo dos filas como máximo.
 
-Añadir en la futura 004 las claves candidatas compuestas necesarias para las FK a fecha/temporada de competencias y partidos; no bastan FK independientes por ID para garantizar coherencia. Indexar todas las FK. Usar `ON DELETE RESTRICT`, bajas lógicas y auditoría, sin cascadas destructivas. No crear otro catálogo de categorías ni copiar tarifas en partidos.
+Añadir en la futura 005 las claves candidatas compuestas necesarias para las FK a fecha/temporada de competencias y partidos; no bastan FK independientes por ID para garantizar coherencia. Indexar todas las FK. Usar `ON DELETE RESTRICT`, bajas lógicas y auditoría, sin cascadas destructivas. No crear otro catálogo de categorías ni copiar tarifas en partidos.
 
-`mesas_jornada` cubre los recursos compartidos dentro de una jornada. Si la Liga organiza jornadas coincidentes que comparten físicamente mesas, necesitará además un inventario físico común con disponibilidad por jornada; no se puede identificar una mesa física solo por el texto del recinto. Validar ese alcance antes de cerrar 004.
+`mesas_jornada` cubre los recursos compartidos dentro de una jornada. Si la Liga organiza jornadas coincidentes que comparten físicamente mesas, necesitará además un inventario físico común con disponibilidad por jornada; no se puede identificar una mesa física solo por el texto del recinto. Validar ese alcance antes de cerrar 005.
 
 El modelo separa identidad, jornada, competencia, partido y revisión de agenda. Los intervalos copiados en reservas son una **desnormalización controlada** necesaria para la exclusión: triggers y RPC los derivan del plan y la ejecución; ningún cliente puede escribirlos libremente ni omitir jugadores de una reserva.
 
@@ -146,12 +146,12 @@ Hasta definir responsables por jornada, conservar el alcance actual de operadore
 ## 7. Implementación incremental para un desarrollador
 
 1. Revisar con la Liga: identidad compartida jugador/árbitro; duración estimada y descansos si existen; alcances de jueces; tratamiento de cierres reglamentarios y excepciones; significado de confirmación de fecha; acceso de jugadores designados árbitros; cuándo puede iniciar una categoría respecto a su hora publicada.
-2. Aprobar alcance de 004. Elaborar DDL y pruebas aisladas: identidad, mesas, partidos mínimos, participantes, designaciones, revisiones, reservas y auditoría. Incidencias puede incorporarse después de la agenda básica; actas/resultados necesitan otra revisión. Revisar primero dependencias de admisión/inscripciones: no habilitar encuentros reales con participantes aún no admitidos.
+2. Aprobar alcance de 005. Elaborar DDL y pruebas aisladas: identidad, mesas, partidos mínimos, participantes, designaciones, revisiones, reservas y auditoría. Incidencias puede incorporarse después de la agenda básica; actas/resultados necesitan otra revisión. Revisar primero dependencias de admisión/inscripciones: no habilitar encuentros reales con participantes aún no admitidos.
 3. Auditar datos heredados y proponer correcciones manuales con autorización. Añadir protecciones temporales en BD sin cambiar los archivos 001–003. No crear partidos ni recursos ficticios en producción; probar con fixtures transaccionales solo en una base aislada.
 4. Probar RPC y RLS antes de la UI deportiva. Implementar agenda manual mínima y después consulta de avance/reprogramación; no generar grupos automáticamente.
 5. Incorporar actas, validación de resultados e incidencias cuando se apruebe su arquitectura. Llaves y ranking quedan fuera de esta etapa.
 
-### Pruebas futuras obligatorias de 004 (no ejecutadas ahora)
+### Pruebas futuras obligatorias de 005 (no ejecutadas ahora)
 
 - Misma mesa con intervalos parcialmente solapados e inicios diferentes: rechazar.
 - Mismo jugador en categorías distintas, incluso en puestos distintos: rechazar solapamiento.
@@ -163,4 +163,4 @@ Hasta definir responsables por jornada, conservar el alcance actual de operadore
 - Retraso más allá del fin estimado: el recurso real sigue ocupado y otro partido no puede empezar. Reprogramar conserva historial y no libera una ocupación real activa.
 - Negar escrituras deportivas de Administrador/Jugador/Árbitro y acceso anónimo a datos privados; probar también llamadas directas a RPC y DML directo, no solo los formularios.
 
-Esta propuesta no afirma que tales conflictos estén impedidos actualmente: las tablas, restricciones y operaciones necesitan la revisión y autorización previas de 004.
+Esta propuesta no afirma que tales conflictos estén impedidos actualmente: las tablas, restricciones y operaciones necesitan la revisión y autorización previas de 005.

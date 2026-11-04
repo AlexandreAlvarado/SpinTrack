@@ -59,7 +59,7 @@ insert into public.competencia_formatos_sets(competencia_id,etapa,mejor_de)
  select c,e,3 from unnest(array[4004,4005]) c cross join unnest(array['grupos','previa_cuartos','cuartos','semifinal','final']) e;
 update public.competencia_control_deportivo set inicio_programado=
  ((clock_timestamp() at time zone 'America/Santiago')::date+1+time '23:59:59') at time zone 'America/Santiago',
- minimo_participantes=1,grupo_minimo=3,grupo_maximo=4,formato_competencia='grupos_eliminacion_simple',
+ minimo_participantes=4,grupo_minimo=3,grupo_maximo=4,formato_competencia='grupos_eliminacion_simple',
  reglamento_id=4004,motivo_resolucion='Fixture mínimo excepcional',referencia_resolucion='Fixture',
  configuracion_aprobada=true,estado_deportivo='preparada';
 insert into public.habilitaciones_jugador_categoria(jugador_id,categoria_temporada_id,estado,motivo,referencia_evidencia)
@@ -103,7 +103,7 @@ select public.check004((select count(*)=0 from public.inscripciones),'Árbitro s
 select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000001"}',true);
 select public.reject004('select public.solicitar_inscripcion(4005,4004)','23514');
 select public.solicitar_inscripcion(4005,4004,'Solicitud documentada de participante sin cuenta');
-select public.reject004('select public.solicitar_inscripcion(4006,4004,''Solicitud'')','23514');
+select public.solicitar_inscripcion(4006,4004,'Solicitud adicional sin límite');
 select public.reject004($q$select public.resolver_inscripcion((select id from public.inscripciones where jugador_id=4004 and competencia_id=4004),'aceptada','x','x')$q$,'42501');
 select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000002"}',true);
 select public.reject004($q$select public.resolver_inscripcion((select id from public.inscripciones where jugador_id=4004 and competencia_id=4004),'aceptada',null,null)$q$,'23514');
@@ -113,7 +113,7 @@ select public.reject004($q$select public.resolver_inscripcion((select id from pu
 select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000001"}',true);
 select public.resolver_inscripcion((select id from public.inscripciones where jugador_id=4004 and competencia_id=4004),'cancelada','Decisión externa documentada','Resolución fixture');
 select public.reject004('select public.solicitar_inscripcion(4004,4004,''Solicitud'')','23505');
-select public.solicitar_inscripcion(4006,4004,'Solicitud fixture');
+
 select public.check004((select count(*)=7 from public.inscripciones_historial),'Historial de solicitud y decisiones');
 select public.check004(exists(select 1 from public.inscripciones_historial where antecedentes#>>'{reglamento,referencia_documental}'='PRIVADO_REGLAMENTO_004'
  and antecedentes#>>'{habilitacion,referencia_evidencia}'='PRIVADO_EVIDENCIA_004'), 'Administración conserva evidencia completa');
@@ -220,7 +220,7 @@ select public.reject004('select public.resolver_inscripcion(999999,''aceptada'',
 rollback;
 
 -- Casos independientes: modificar fixtures únicamente dentro de subtransacciones.
--- Solicitudes creadas antes del cierre REAL; ambas reservan el cupo completo.
+-- Solicitudes creadas antes del cierre REAL; sin máximo general.
 begin;
 select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000001"}',true);
 update public.competencias set publicada=false,inscripciones_habilitadas=false where id=4004;
@@ -243,7 +243,7 @@ update public.habilitaciones_jugador_categoria set estado='habilitado' where jug
 select public.resolver_inscripcion((select id from public.inscripciones where jugador_id=4004),'aceptada','Revisión vigente posterior al cierre','Fixture');
 select public.resolver_inscripcion((select id from public.inscripciones where jugador_id=4006),'rechazada','Revisión posterior al cierre','Fixture');
 select public.check004((select creado_en>=solicitud_abre_en and creado_en<solicitud_cierra_en
- and actualizado_en>=solicitud_cierra_en and estado='aceptada' from public.inscripciones where jugador_id=4004),'Acepta después del cierre original con cupo reservado');
+ and actualizado_en>=solicitud_cierra_en and estado='aceptada' from public.inscripciones where jugador_id=4004),'Acepta después del cierre original sin máximo general');
 select public.reject004('select public.resolver_inscripcion(999999,''aceptada'',''Fixture'',''Fixture'')','23503');
 select public.reject004('select public.resolver_inscripcion(999999,null,''Fixture'',''Fixture'')','42501');
 select public.reject004('select public.resolver_inscripcion(999999,''cancelada'',''Fixture'',''Fixture'')','42501');
@@ -334,13 +334,13 @@ select public.reject004('select public.solicitar_inscripcion(4004,4004)','25000'
 rollback;
 
 -- Concurrencia real: la primera conexión conserva el bloqueo sin confirmar.
--- La segunda no debe terminar hasta commit; tras esperar debe contar el cupo nuevo.
+-- La segunda espera por coherencia con configuración; ambas deben poder inscribirse.
 select dblink_connect('a','host=127.0.0.1 port=55404 dbname=liga_004_test user=postgres');
 select dblink_connect('b','host=127.0.0.1 port=55404 dbname=liga_004_test user=postgres');
 select dblink_exec('a','begin');
 select * from dblink('a',$q$select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000001"}',false)$q$) as x(v text);
 select * from dblink('b',$q$select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000001"}',false)$q$) as x(v text);
--- Llenar uno de los dos cupos y disputar el último.
+-- Superar el valor heredado 2 con solicitudes simultáneas de jugadores distintos.
 select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000001"}',false);
 select public.solicitar_inscripcion(4005,4004,'Fixture');
 select * from dblink('a',$q$select public.solicitar_inscripcion(4007,4004,'Fixture A')$q$) as x(id bigint);
@@ -349,10 +349,27 @@ select pg_sleep(0.2);
 select public.check004(dblink_is_busy('b')=1,'Segundo escritor espera bloqueo');
 select dblink_exec('a','commit');
 select * from dblink_get_result('b',false) as x(id bigint);
-select public.check004(dblink_error_message('b') like '%Cupo agotado%','Segundo escritor rechaza sobrecupo tras commit');
-select public.check004((select count(*)=2 from public.inscripciones where competencia_id=4004),'Cupo exacto tras concurrencia');
-select public.reject004($q$update public.competencias set publicada=false,inscripciones_habilitadas=false where id=4004;
- update public.competencias set cupo_maximo=1 where id=4004$q$,'23514');
+select public.check004(dblink_error_message('b')='OK','Segundo escritor también se inscribe');
+select public.check004((select count(*)=3 from public.inscripciones where competencia_id=4004),'Supera el valor heredado sin bloquear participantes');
+-- Conjunto sintético mayor que el mínimo y que cualquier valor heredado del fixture.
+insert into public.jugadores(id,nombre_completo,fecha_nacimiento) overriding system value
+ select n,'Jugador sintético '||n,'2000-01-01'::date from generate_series(5000,5099) n;
+select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000002"}',false);
+insert into public.habilitaciones_jugador_categoria(jugador_id,categoria_temporada_id,estado,motivo,referencia_evidencia)
+ select n,4004,'habilitado','Fixture revisión','Fixture evidencia' from generate_series(5000,5099) n;
+select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000001"}',false);
+select public.solicitar_inscripcion(n,4004,'Solicitud sintética') from generate_series(5000,5099) n;
+select public.check004((select count(*)=103 from public.inscripciones where competencia_id=4004),'103 elegibles sin máximo general');
+select public.check004((select cupo_maximo=2 from public.competencias where id=4004),'Se conserva el dato heredado sin aplicarlo');
+-- El mínimo deportivo y el tamaño de cada grupo siguen vigentes.
+begin;
+update public.competencias set publicada=false,inscripciones_habilitadas=false where id=4004;
+select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000002"}',true);
+select public.reject004('update public.competencia_control_deportivo set minimo_participantes=0 where competencia_id=4004','23514');
+select public.reject004('update public.competencia_control_deportivo set grupo_maximo=5 where competencia_id=4004','23514');
+select public.check004((select minimo_participantes=4 and grupo_minimo=3 and grupo_maximo=4 from public.competencia_control_deportivo where competencia_id=4004),'Mínimo y composición de grupos conservados');
+rollback;
+
 -- Volver a usar las conexiones para probar cierre DURANTE la espera del bloqueo.
 select * from dblink_get_result('b',false) as x(id bigint);
 update public.competencias set publicada=false,inscripciones_habilitadas=false where id=4005;

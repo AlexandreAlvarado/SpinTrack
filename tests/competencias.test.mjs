@@ -24,22 +24,33 @@ const overview = load("../src/components/journey-overview.tsx", {
 });
 function form(extra = {}) {
   const result = new FormData();
-  for (const [key, value] of Object.entries({ categoria_temporada_id: "3", tarifa_clp: "", cupo_maximo: "", inscripcion_abre_en: "", inscripcion_cierra_en: "", activo: "true", publicada: "false", inscripciones_habilitadas: "false", ...extra })) result.set(key, value);
+  for (const [key, value] of Object.entries({ categoria_temporada_id: "3", tarifa_clp: "", inscripcion_abre_en: "", inscripcion_cierra_en: "", activo: "true", publicada: "false", inscripciones_habilitadas: "false", ...extra })) result.set(key, value);
   return result;
 }
-const draft = { id: 5, temporada_id: 1, fecha_id: 2, categoria_temporada_id: 3, tarifa_clp: null, cupo_maximo: null, inscripcion_abre_en: null, inscripcion_cierra_en: null, activo: true, publicada: false, inscripciones_habilitadas: false };
+const draft = { id: 5, temporada_id: 1, fecha_id: 2, categoria_temporada_id: 3, tarifa_clp: null, inscripcion_abre_en: null, inscripcion_cierra_en: null, activo: true, publicada: false, inscripciones_habilitadas: false };
 const approved = { competencia_id: 5, configuracion_aprobada: true, estado_deportivo: "preparada", inicio_programado: "2026-08-08T16:00:00Z", minimo_participantes: 4 };
 const complete = { ...draft, tarifa_clp: 0, publicada: true, inscripcion_abre_en: "2026-08-01T16:00:00Z", inscripcion_cierra_en: "2026-08-06T23:00:00Z" };
 
-test("borrador conserva tarifa, cupo y plazos nulos sin inventar valores", () => {
+test("borrador conserva tarifa y plazos nulos sin inventar valores", () => {
   const result = domain.validateCompetition(form(), false);
   assert.deepEqual(result.errors, {});
-  for (const key of ["tarifa_clp", "cupo_maximo", "inscripcion_abre_en", "inscripcion_cierra_en"]) assert.equal(result.payload[key], null);
+  for (const key of ["tarifa_clp", "inscripcion_abre_en", "inscripcion_cierra_en"]) assert.equal(result.payload[key], null);
   assert.equal(result.payload.publicada, false); assert.equal(result.payload.inscripciones_habilitadas, false);
 });
-test("tarifa permite cero explícito; cupo positivo y límites integer PostgreSQL", () => {
+test("tarifa permite cero explícito y respeta límites integer PostgreSQL", () => {
   assert.deepEqual(domain.validateCompetition(form({ tarifa_clp: "0", cupo_maximo: "2147483647" }), false).errors, {});
-  for (const extra of [{ tarifa_clp: "-1" }, { tarifa_clp: "4.000" }, { tarifa_clp: "1e3" }, { tarifa_clp: "2147483648" }, { cupo_maximo: "0" }, { cupo_maximo: "2.5" }]) assert.ok(Object.keys(domain.validateCompetition(form(extra), false).errors).length);
+  for (const extra of [{ tarifa_clp: "-1" }, { tarifa_clp: "4.000" }, { tarifa_clp: "1e3" }, { tarifa_clp: "2147483648" }]) assert.ok(Object.keys(domain.validateCompetition(form(extra), false).errors).length);
+});
+test("el máximo general no se configura ni se envía, incluso si se manipula el formulario", async () => {
+  for (const cupo_maximo of ["1", "0", "-1", "99999999999999999999", "texto"]) {
+    const result = domain.validateCompetition(form({ cupo_maximo }), false);
+    assert.deepEqual(result.errors, {}); assert.equal(Object.hasOwn(result.payload, "cupo_maximo"), false);
+  }
+  assert.ok(!domain.COMPETITION_COLUMNS.includes("cupo_maximo"));
+  const h = harness({ record: { ...draft, cupo_maximo: 1 }, sports: approved });
+  assert.ok((await h.save(5, { cupo_maximo: "2" })).success);
+  assert.equal(Object.hasOwn(h.calls.writes[0].p, "cupo_maximo"), false);
+  assert.doesNotMatch(renderForm(), /name="cupo_maximo"|Cupo máximo opcional/);
 });
 test("campos inválidos, estados manipulados y archivos no generan payload válido", () => {
   for (const extra of [{ categoria_temporada_id: "-1" }, { categoria_temporada_id: "9007199254740992" }, { activo: "on" }, { publicada: "sí" }, { inscripciones_habilitadas: "on" }, { activo: "false", publicada: "true" }]) assert.ok(Object.keys(domain.validateCompetition(form(extra), false).errors).length);
@@ -89,7 +100,7 @@ test("habilitación exige aprobación, fecha publicada, estado preparada, tarifa
   assert.ok(domain.openingBlockers(draft, { ...date, estado: "borrador" }, null).length >= 5);
   assert.deepEqual(domain.openingBlockers(complete, date, approved), []);
   for (const sports of [{ ...approved, configuracion_aprobada: false }, { ...approved, estado_deportivo: "en_curso" }]) assert.ok(domain.openingBlockers(complete, date, sports).length);
-  assert.ok(domain.openingBlockers({ ...complete, cupo_maximo: 3 }, date, approved).some(x => /mínimo/.test(x)));
+  assert.deepEqual(domain.openingBlockers({ ...complete, cupo_maximo: 1 }, date, approved), []);
   assert.ok(domain.openingBlockers({ ...complete, inscripcion_cierra_en: "2026-08-08T17:00:00Z" }, date, approved).some(x => /inicio/.test(x)));
 });
 
@@ -134,7 +145,7 @@ test("creación de borrador solo escribe competencias y columnas permitidas", as
   const h = harness();
   assert.ok((await h.save(null, { temporada_id: "999", fecha_id: "999", configuracion_aprobada: "true" })).success);
   assert.equal(h.calls.writes.length, 1);
-  assert.deepEqual(h.calls.writes[0], { table: "competencias", mode: "insert", p: { categoria_temporada_id: 3, tarifa_clp: null, cupo_maximo: null, inscripcion_abre_en: null, inscripcion_cierra_en: null, activo: true, publicada: false, inscripciones_habilitadas: false, temporada_id: 1, fecha_id: 2 } });
+  assert.deepEqual(h.calls.writes[0], { table: "competencias", mode: "insert", p: { categoria_temporada_id: 3, tarifa_clp: null, inscripcion_abre_en: null, inscripcion_cierra_en: null, activo: true, publicada: false, inscripciones_habilitadas: false, temporada_id: 1, fecha_id: 2 } });
 });
 test("rechaza categoría inactiva y no publica ni habilita sin aprobación deportiva", async () => {
   assert.ok((await harness({ category: { id: 3, activo: false } }).save()).error);
@@ -167,10 +178,10 @@ test("retirar publicación preserva precisión temporal de PostgreSQL", async ()
   assert.ok((await h.save(5, { inscripcion_abre_en: "2026-08-01T12:00:00.123" })).success);
   assert.equal(h.calls.writes[0].p.inscripcion_abre_en, timestamp);
 });
-test("habilitación aprobada válida; rechaza fecha en borrador, cupo menor y cierre posterior", async () => {
+test("habilitación aprobada válida; rechaza fecha en borrador y cierre posterior", async () => {
   const extra = { publicada: "true", inscripciones_habilitadas: "true", tarifa_clp: "0", inscripcion_abre_en: "2026-08-01T12:00", inscripcion_cierra_en: "2026-08-06T20:00" };
   assert.ok((await harness({ sports: approved }).save(5, extra)).success);
-  for (const [options, fields] of [[{ sports: approved, date: { id: 2, fecha: "2026-08-08", estado: "borrador" } }, {}], [{ sports: approved }, { cupo_maximo: "3" }], [{ sports: approved }, { inscripcion_cierra_en: "2026-08-09T12:00" }]]) {
+  for (const [options, fields] of [[{ sports: approved, date: { id: 2, fecha: "2026-08-08", estado: "borrador" } }, {}], [{ sports: approved }, { inscripcion_cierra_en: "2026-08-09T12:00" }]]) {
     const h = harness(options); assert.ok((await h.save(5, { ...extra, ...fields })).error); assert.equal(h.calls.writes.length, 0);
   }
 });
@@ -353,4 +364,10 @@ test("la jornada adicional se carga dinámicamente y no crea registros por categ
   assert.match(result.html, /07-11-2026/); assert.match(result.html, /14-11-2026/);
   assert.match(result.html, /Recinto compartido/);
   assert.doesNotMatch(result.html, /No se establece automáticamente el 7 de noviembre/);
+});
+test("valor heredado se advierte para revisión sin volver a mostrar un campo de cupo", async () => {
+  const result = await renderPage({ temporada: "1", fecha: "2" }, { rows: { competencias: [{ ...draft, cupo_maximo: 1 }] } });
+  assert.match(result.html, /Hay valores heredados de máximo general/);
+  assert.match(result.html, /#5/);
+  assert.doesNotMatch(result.html, /name="cupo_maximo"|Cupo:/);
 });

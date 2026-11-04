@@ -6,11 +6,11 @@ export type CompetitionState = CatalogState;
 export type CompetitionDate = { id: number; temporada_id: number; numero: number; fecha: string; comuna: string; recinto: string; estado: string };
 export type Competition = {
   id: number; temporada_id: number; fecha_id: number; categoria_temporada_id: number;
-  tarifa_clp: number | null; cupo_maximo: number | null; inscripcion_abre_en: string | null; inscripcion_cierra_en: string | null;
+  tarifa_clp: number | null; inscripcion_abre_en: string | null; inscripcion_cierra_en: string | null;
   activo: boolean; publicada: boolean; inscripciones_habilitadas: boolean;
 };
 export type SportsControl = { competencia_id: number; configuracion_aprobada: boolean; estado_deportivo: string; inicio_programado: string | null; minimo_participantes: number | null };
-export const COMPETITION_COLUMNS = "id,temporada_id,fecha_id,categoria_temporada_id,tarifa_clp,cupo_maximo,inscripcion_abre_en,inscripcion_cierra_en,activo,publicada,inscripciones_habilitadas";
+export const COMPETITION_COLUMNS = "id,temporada_id,fecha_id,categoria_temporada_id,tarifa_clp,inscripcion_abre_en,inscripcion_cierra_en,activo,publicada,inscripciones_habilitadas";
 const localFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: LEAGUE_ZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
 
 export function localDateTime(instant: string | null) {
@@ -65,7 +65,7 @@ export function validateCompetition(form: FormData, editing: boolean) {
     if (!validId(category)) errors.categoria_temporada_id = "Selecciona una categoría de esta temporada.";
     payload.categoria_temporada_id = Number(category);
   }
-  for (const key of ["tarifa_clp", "cupo_maximo"]) {
+  for (const key of ["tarifa_clp"]) {
     const value = read(key);
     const min = key === "tarifa_clp" ? 0 : 1;
     if (value && (!/^\d+$/.test(value) || Number(value) < min || Number(value) > 2147483647)) errors[key] = `Usa un entero entre ${min} y 2147483647, sin puntos ni separadores.`;
@@ -139,7 +139,7 @@ export function journeyStarts(competitions: Competition[], controls: SportsContr
   return { groups: [...groups.values()].sort((a, b) => new Date(a.instant).getTime() - new Date(b.instant).getTime()), pending };
 }
 
-export function openingBlockers(c: Pick<Competition, "activo" | "publicada" | "tarifa_clp" | "inscripcion_abre_en" | "inscripcion_cierra_en" | "cupo_maximo">, date: Pick<CompetitionDate, "estado" | "fecha">, sports: SportsControl | null) {
+export function openingBlockers(c: Pick<Competition, "activo" | "publicada" | "tarifa_clp" | "inscripcion_abre_en" | "inscripcion_cierra_en">, date: Pick<CompetitionDate, "estado" | "fecha">, sports: SportsControl | null) {
   const reasons: string[] = [];
   if (!sports?.configuracion_aprobada) reasons.push("Falta aprobación deportiva del Juez General.");
   if (sports?.estado_deportivo !== "preparada") reasons.push("La competencia debe estar preparada por el Juez General.");
@@ -147,7 +147,6 @@ export function openingBlockers(c: Pick<Competition, "activo" | "publicada" | "t
   if (!c.activo || !c.publicada) reasons.push("La competencia debe estar activa y publicada.");
   if (c.tarifa_clp === null) reasons.push("Falta la tarifa confirmada.");
   if (!c.inscripcion_abre_en || !c.inscripcion_cierra_en) reasons.push("Faltan los plazos de inscripción.");
-  if (c.cupo_maximo !== null && sports?.minimo_participantes !== null && sports?.minimo_participantes !== undefined && c.cupo_maximo < sports.minimo_participantes) reasons.push("El cupo es inferior al mínimo deportivo aprobado.");
   const timing = competitionTimingIssues(c, date, sports);
   return [...new Set([...reasons, ...Object.values(timing.errors), ...(timing.sportsIssue ? [timing.sportsIssue] : [])])];
 }

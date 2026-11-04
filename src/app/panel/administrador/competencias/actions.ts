@@ -20,11 +20,11 @@ export async function saveCompetition(seasonId: number, dateId: number, id: numb
       const result = await db.from("competencias").select(COMPETITION_COLUMNS).eq("id", id).eq("temporada_id", seasonId).eq("fecha_id", dateId).maybeSingle();
       if (result.error || !result.data) return { error: "La competencia no existe en esta fecha o no está disponible.", values };
       existing = result.data as Competition;
-      if ((existing.publicada || existing.inscripciones_habilitadas) && ["tarifa_clp", "cupo_maximo", "inscripcion_abre_en", "inscripcion_cierra_en"].some(key => {
+      if ((existing.publicada || existing.inscripciones_habilitadas) && ["tarifa_clp", "inscripcion_abre_en", "inscripcion_cierra_en"].some(key => {
         const before = existing![key as keyof Competition];
         const after = payload[key];
         return key.startsWith("inscripcion_") && before && after ? new Date(String(before)).getTime() !== new Date(String(after)).getTime() : before !== after;
-      })) return { error: "Primero guarda la competencia sin publicación y con inscripciones deshabilitadas, conservando las condiciones actuales. Después podrás cambiar tarifa, cupo o plazos.", values };
+      })) return { error: "Primero guarda la competencia sin publicación y con inscripciones deshabilitadas, conservando las condiciones actuales. Después podrás cambiar tarifa o plazos.", values };
       if (existing.publicada || existing.inscripciones_habilitadas) {
         // Conservar precisión PostgreSQL al retirar publicación, incluso si el timestamp
         // original contiene microsegundos que datetime-local/Date no representan.
@@ -47,7 +47,7 @@ export async function saveCompetition(seasonId: number, dateId: number, id: numb
     // No es una excepción para publicar, habilitar ni introducir nuevos plazos inválidos.
     const safeWithdrawal = existing && !payload.publicada && !payload.inscripciones_habilitadas
       && (payload.activo === existing.activo || payload.activo === false)
-      && ["tarifa_clp", "cupo_maximo", "inscripcion_abre_en", "inscripcion_cierra_en"].every(key => {
+      && ["tarifa_clp", "inscripcion_abre_en", "inscripcion_cierra_en"].every(key => {
         const before = existing[key as keyof Competition];
         const after = payload[key];
         return key.startsWith("inscripcion_") && before && after ? new Date(String(before)).getTime() === new Date(String(after)).getTime() : before === after;

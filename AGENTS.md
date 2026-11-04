@@ -43,7 +43,9 @@ Soy el único desarrollador de una aplicación web progresiva (PWA) para gestion
 - Una jornada reúne todas las categorías individuales habilitadas. No crear una fecha distinta por categoría.
 - Las competencias pueden tener inicios diferentes y desarrollarse simultáneamente; no imponer una secuencia entre categorías.
 - Mesas, jugadores y árbitros son recursos compartidos por toda la jornada. Los conflictos de una persona se revisan también entre categorías y entre su participación como jugador y como árbitro.
-- Consultar temporadas y fechas existentes en Supabase; no fijar jornadas, tarifas, cupos ni horarios en el código. Un registro o su publicación administrativa no constituyen por sí solos confirmación documental de la Liga.
+- Consultar temporadas y fechas existentes en Supabase; no fijar jornadas, tarifas ni horarios en el código. Un registro o su publicación administrativa no constituyen por sí solos confirmación documental de la Liga.
+- Corrección oficial de alcance: NO existe máximo general de participantes por competencia. Solo se exige el mínimo establecido en las Bases (o una resolución excepcional documentada). No configurar cupos ni bloquear inscripciones por cantidad; cupo_maximo de 003 es una columna heredada sin uso deportivo. No modificar sus valores automáticamente.
+- El tamaño permitido de cada grupo es independiente del total de participantes. Conservar las reglas documentadas de composición; la futura cantidad de grupos y partidos se calculará según participantes realmente inscritos/admitidos, sin un máximo general ni algoritmos inventados.
 - No modificar, eliminar ni publicar fechas automáticamente. Conservar datos reales y permitir configuración pendiente.
 - Administrador: condiciones administrativas e inscripciones habilitadas solo si se cumplen los requisitos. Juez General: inicio deportivo, mesas, programación, árbitros, reprogramación y aprobación de resultados.
 - Fechas civiles y plazos se interpretan en America/Santiago; guardar instantes como timestamptz y tratar cambios de horario explícitamente.

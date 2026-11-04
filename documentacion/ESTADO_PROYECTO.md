@@ -35,6 +35,8 @@ Las tres migraciones están aplicadas en Supabase. No modificarlas retroactivame
 - Categorías y niveles.
 - Reglamentos y categorías por temporada.
 - Competencias por fecha y resumen de jornada.
+- Panel del Juez General: primera versión de Preparación Deportiva.
+- Panel del Juez General: habilitaciones deportivas por categoría y temporada.
 
 Último informe de Codex: 100 pruebas automatizadas aprobadas, ESLint y TypeScript correctos. Las pruebas no sustituyen una revisión integral en producción.
 
@@ -65,6 +67,74 @@ Consultar `documentacion/arquitectura-programacion-jornadas.md`.
 La migración 004 corresponde a inscripciones. La programación operativa de partidos
 queda para una futura migración 005, todavía sin crear ni implementar.
 
+## Juez General: Preparación Deportiva
+
+- Ruta `/panel/juez-general/preparacion`, accesible desde la navegación propia del
+  Juez. Selección de temporada/jornada existente y todas sus competencias individuales.
+- Borrador de inicio en America/Santiago, mínimo, grupos de tres/cuatro, formato y
+  resolución excepcional. Cada etapa de sets se guarda por separado (3 o 5), sin
+  precargar reglas ni validar reglamentos desde este panel. Mínimo inferior a cuatro
+  exige motivo y referencia; ninguna consulta crea o corrige registros automáticamente.
+- Aprobación explícita del borrador guardado, con requisitos pendientes, validación
+  del día/plazos en servidor y confirmación de estado/auditoría devueltos por PostgreSQL.
+  Todas las acciones verifican juez_general y usan sesión + RLS de 003, sin service_role.
+- Configuraciones aprobadas, publicadas o en estados operativos se conservan en lectura.
+  No se implementan retiro de aprobación ni transiciones de inicio/suspensión/cierre.
+  Se muestran actores/fechas que ya mantiene 003; no existe un historial inmutable de
+  cada edición de borrador ni se añadió una tabla para simularlo.
+- Guardados por registro, sin transacción global entre control y cinco etapas; errores
+  conservan lo ya guardado y no anuncian aprobación. Se comprueban revisiones para
+  evitar sobrescribir cambios concurrentes del mismo registro. El día local se valida
+  en servidor, no es una nueva restricción SQL de 003 sobre escrituras externas.
+- Verificación: 79 pruebas relevantes (Preparación Deportiva, competencias y temporadas
+  deportivas), lint y TypeScript. Incluyen renderizado y Supabase simulado; no se
+  realizaron guardados reales ni pruebas HTTP autenticadas contra Supabase.
+- Comprobar con una cuenta Juez: elegir temporada/jornada, revisar competencia,
+  guardar borrador y cada etapa, revisar pendientes y aprobar solo con datos validados.
+  Esta versión requiere únicamente 001–003; no necesita aplicar 004.
+
+## Juez General: Habilitaciones Deportivas
+
+- Ruta `/panel/juez-general/habilitaciones`, con selección de temporada/categoría,
+  búsqueda por nombre o ID y filtros por resolución, tipo, actividad y cuenta.
+- Jugadores sin cuenta y homónimos se revisan individualmente por ID. Se muestran
+  nacimiento, club, procedencia, reglas vigentes y motivo/referencia de la resolución.
+- Estados reales de 003: pendiente, habilitado, no_habilitado; tipos ordinaria y
+  excepcion_documentada. Sin registro se muestra «Sin resolución», no una habilitación.
+- Validación de nacimiento por rango inclusivo de años; no se infieren edad, sexo ni
+  condición federativa del nombre/club. Habilitar exige revisión documental explícita,
+  motivo, referencia y reglas validadas. Una excepción no omite reglas pendientes.
+- Acciones solo juez_general con sesión y RLS; sin cambios de identidad, auditoría
+  enviada por el cliente, borrados ni inscripción automática. Se comparan los campos
+  actuales antes del UPDATE para evitar sobrescrituras concurrentes. 003 conserva la
+  resolución actual y su validación, no un historial inmutable de todas las revisiones.
+- Verificación: 56 pruebas focalizadas (20 nuevas), ESLint y TypeScript. Se utilizaron
+  clientes Supabase simulados; no se ejecutó SQL ni se alteraron datos reales.
+- Comprobación manual: entrar como Juez → Habilitaciones deportivas → temporada y
+  categoría → buscar jugador → revisar reglas/antecedentes → registrar resolución
+  explícita y comprobar confirmación. Administrador, Árbitro y Jugador no acceden a
+  esta interfaz; no se cambiaron sus permisos existentes de PostgreSQL.
+
+## Corrección oficial: participantes sin máximo general
+
+- No existe máximo general por competencia. Se mantiene el mínimo deportivo y la
+  composición de grupos de tres o cuatro, que no limita el total de participantes.
+- Se retiraron el campo de cupo, su texto y validaciones de interfaces/tipos activos.
+  Nuevos registros no envían cupo_maximo; tampoco se limpian valores anteriores.
+- 004 pendiente elimina conteos y bloqueo por cupos y reemplaza el validador heredado
+  validar_competencia_003 para quitar su comparación máximo/mínimo, conservando las
+  demás comprobaciones y permisos. Los archivos 001–003 permanecen intactos.
+- Antes de aplicar 004, el trigger de 003 aún puede rechazar habilitar inscripciones
+  si un valor heredado es menor que el mínimo. La pantalla administrativa advierte
+  sobre valores no nulos consultados; no se consultó ni alteró Supabase en esta tarea,
+  por lo que su existencia real queda pendiente de revisión autorizada.
+- La futura cantidad de grupos y partidos dependerá de los inscritos/admitidos reales.
+  No se implementa ese cálculo aquí. Distribuciones residuales y excepciones de
+  composición requieren resolución documentada; no se inventan grupos fuera de Bases.
+- Verificación focalizada: TypeScript, ESLint, pruebas de competencias/preparación y
+  004 en PostgreSQL temporal, incluidos 103 inscritos elegibles con dato heredado 2,
+  concurrencia sin bloqueo por cantidad y conservación del mínimo y de permisos.
+
 ## Inscripciones: implementación de base de datos (004)
 
 - Una inscripción histórica por jugador y competencia; permite distintas categorías
@@ -73,7 +143,7 @@ queda para una futura migración 005, todavía sin crear ni implementar.
   Cualquier cuenta vinculada a jugadores.perfil_id puede solicitar para sí misma,
   incluido Árbitro o Juez General. Solo Administrador puede registrar solicitudes
   ajenas o sin cuenta, con evidencia de representación. El vínculo no otorga cargos.
-- Solicitud inicial `pendiente`. Pendientes y aceptadas reservan cupo; no hay lista
+- Solicitud inicial `pendiente`. No hay máximo general de participantes; no hay lista
   de espera. Es una decisión técnica conservadora, no una regla deportiva de las Bases.
 - RPC `resolver_inscripcion(id, estado, motivo, referencia)`: Juez General puede
   pasar pendiente a aceptada/rechazada. Administrador puede instrumentar una
@@ -82,19 +152,19 @@ queda para una futura migración 005, todavía sin crear ni implementar.
 - Solicitud y aceptación revalidan jugador activo, habilitación vigente (ordinaria
   con nacimiento actual o excepción documentada), categoría y reglamento validados,
   aprobación deportiva, competencia preparada/activa/publicada, jornada publicada,
-  tarifa configurada y cupo. Solo la solicitud exige inscripciones habilitadas y
+  tarifa configurada. Solo la solicitud exige inscripciones habilitadas y
   período actual `[apertura, cierre)`. Apertura y cierre originales se conservan
   en columnas inmutables, con CHECK de presentación dentro del plazo original.
 - Instantes `timestamptz`, día deportivo en America/Santiago; reloj comprobado después
   de esperar bloqueos. El Juez puede aceptar o rechazar después del cierre una
   solicitud presentada a tiempo, incluso si se deshabilitaron nuevas solicitudes.
-  La aceptación revalida elegibilidad y evidencia, conserva el cupo reservado y exige
+  La aceptación revalida elegibilidad y evidencia y exige
   instante anterior al inicio programado. No se aceptan competencias en curso,
   suspendidas, finalizadas o canceladas, ni preparada cuyo inicio ya se alcanzó.
   No se implementa excepción para admitir participantes después del inicio.
 - Bloqueo transaccional compartido con 003 y bloqueo de competencia; READ COMMITTED
   obligatorio. Otros niveles se rechazan explícitamente para evitar conteos obsoletos.
-  Se impide reducir el cupo por debajo de reservas vigentes. La serialización global
+  No existe validación por máximo general. La serialización global
   prioriza consistencia y sencillez para el MVP; puede limitar rendimiento futuro.
 - Escrituras únicamente mediante RPC con autorización interna; RLS limita lectura
   del resumen deportivo al titular y operadores. El resumen usa una lista cerrada
@@ -112,7 +182,7 @@ queda para una futura migración 005, todavía sin crear ni implementar.
   base antes de tomar bloqueos; llamar directamente a la API no elude controles.
   Una identidad ajena o inexistente recibe el mismo rechazo para usuarios sin
   permiso administrativo. El trigger repite la comprobación sobre el vínculo vigente.
-- Las tres funciones internas SECURITY DEFINER están en privado_inscripciones,
+- Las dos funciones internas SECURITY DEFINER están en privado_inscripciones,
   sin USAGE ni EXECUTE de clientes. No añadir este esquema a exposed schemas de
   PostgREST. Los triggers funcionan con su propietario de migración y no son RPC.
 - Las cinco funciones de 004 usan search_path vacío y relaciones/funciones de
@@ -178,9 +248,9 @@ No sustituye una prueba posterior contra Auth/PostgREST de un entorno Supabase a
 Se ejecutaron las suites SQL 002, 003 y
 `supabase/tests/004_inscripciones.test.sql`: múltiples categorías, duplicados,
 referencias inválidas, roles/RLS, representación, historial, decisiones/cancelaciones,
-cupo y liberación, elegibilidad vigente/excepciones, apertura/cierre y aislamiento.
+ausencia de máximo general, elegibilidad vigente/excepciones, apertura/cierre y aislamiento.
 La suite 004 usa dblink y fixtures sintéticos persistentes exclusivamente en esa base
-temporal; verifica dos conexiones disputando el último cupo y cierre durante espera.
+temporal; verifica dos conexiones inscribiéndose por encima del dato heredado y cierre durante espera.
 La ampliación se ejecutó con privilegios por defecto amplios para anon,
 authenticated y service_role, verificando las revocaciones explícitas de 004.
 Comprueba Árbitro/Juez con identidad vinculada, ausencia de permisos
@@ -195,7 +265,7 @@ Las migraciones anteriores permanecen intactas. No se ejecutó SQL en Supabase.
 ## Próximas etapas
 
 1. Revisar y aplicar 004 en entorno autorizado; desarrollar interfaces de inscripciones.
-2. Validación de elegibilidad y habilitaciones.
+2. Verificar habilitaciones en entorno Supabase autorizado; interfaz implementada.
 3. Programación de grupos, partidos y mesas.
 4. Panel operativo del Juez General.
 5. Árbitros, marcadores y actas.

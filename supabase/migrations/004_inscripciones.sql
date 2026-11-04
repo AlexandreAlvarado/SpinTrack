@@ -6,6 +6,36 @@ begin;
 create schema privado_inscripciones;
 revoke all on schema privado_inscripciones from public, anon, authenticated;
 
+-- Corrección oficial: no hay máximo general. Sustituye solo la lógica heredada
+-- del validador; CREATE OR REPLACE conserva propietario, trigger y permisos.
+-- No actualiza competencias ni reescribe la migración 003 aplicada.
+create or replace function public.validar_competencia_003() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare d public.competencia_control_deportivo;
+begin
+  if tg_op = 'UPDATE' and (old.publicada or old.inscripciones_habilitadas) and (
+    new.tarifa_clp is distinct from old.tarifa_clp
+    or new.inscripcion_abre_en is distinct from old.inscripcion_abre_en
+    or new.inscripcion_cierra_en is distinct from old.inscripcion_cierra_en) then
+    raise exception 'Retirar publicación y cerrar inscripciones antes de cambiar condiciones administrativas' using errcode = '23514';
+  end if;
+  select * into d from public.competencia_control_deportivo where competencia_id = new.id;
+  if (new.publicada or new.inscripciones_habilitadas) and (d.competencia_id is null or not d.configuracion_aprobada) then
+    raise exception 'No se puede publicar ni abrir una configuración deportiva pendiente' using errcode = '23514';
+  end if;
+  if d.configuracion_aprobada and new.inscripcion_cierra_en > d.inicio_programado then
+    raise exception 'El cierre de inscripción es posterior al inicio' using errcode = '23514';
+  end if;
+  if new.inscripciones_habilitadas and (d.estado_deportivo <> 'preparada'
+    or not exists (select 1 from public.fechas where id = new.fecha_id and estado = 'publicada')) then
+    raise exception 'Para habilitar inscripciones se necesita fecha publicada y competencia preparada' using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+
+comment on column public.competencias.cupo_maximo is 'Columna heredada sin efecto deportivo ni límite de inscripción. No configurar ni limpiar automáticamente sus valores.';
+
 create table public.inscripciones (
   id bigint generated always as identity primary key,
   jugador_id bigint not null references public.jugadores(id) on delete restrict,
@@ -43,7 +73,7 @@ create table public.inscripciones_historial (
 create index inscripciones_historial_inscripcion_idx on public.inscripciones_historial(inscripcion_id);
 
 comment on table public.inscripciones is
-  'Pendiente y aceptada reservan cupo; no hay lista de espera ni pago implícito. Rechazada/cancelada son terminales. Una fila por jugador/competencia, incluso tras cierre. Flujo técnico, no resolución automática de derechos deportivos.';
+  'No existe un máximo general de participantes; no hay pago implícito. Rechazada/cancelada son terminales. Una fila por jugador/competencia, incluso tras cierre. Flujo técnico, no resolución automática de derechos deportivos.';
 comment on column public.inscripciones.antecedentes is
   'Resumen deportivo por lista explícita de campos, visible al titular. Sin evidencias, referencias internas ni UUID de operadores. El respaldo completo está en historial, solo para operadores. Aceptar NO acredita pago.';
 comment on column public.inscripciones.referencia_representacion is
@@ -51,7 +81,7 @@ comment on column public.inscripciones.referencia_representacion is
 
 -- Reutilizar el bloqueo de configuración 003 evita carreras con aprobaciones.
 -- Solo READ COMMITTED: cada consulta posterior a la espera debe ver el commit
--- anterior. No aceptar snapshots antiguos de REPEATABLE READ en el conteo.
+-- anterior. No aceptar snapshots antiguos de REPEATABLE READ en las validaciones vigentes.
 create function privado_inscripciones.validar_inscripcion_004() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare c public.competencias; d public.competencia_control_deportivo;
@@ -140,10 +170,6 @@ begin
       (j.fecha_nacimiento is null or extract(year from j.fecha_nacimiento) not between ct.anio_nacimiento_desde and ct.anio_nacimiento_hasta) then
       raise exception 'Nacimiento vigente requiere revisión deportiva' using errcode='23514';
     end if;
-    if c.cupo_maximo is not null and (select count(*) from public.inscripciones
-      where competencia_id=c.id and estado in ('pendiente','aceptada') and id<>new.id) >= c.cupo_maximo then
-      raise exception 'Cupo agotado' using errcode='23514';
-    end if;
     -- No serializar filas completas en una columna visible al titular.
     new.antecedentes := jsonb_build_object(
       'habilitacion',jsonb_build_object('id',h.id,'estado',h.estado),
@@ -186,23 +212,6 @@ $$;
 create trigger historial_inscripcion after insert or update on public.inscripciones
   for each row execute function privado_inscripciones.historial_inscripcion_004();
 
--- No reducir el máximo por debajo de las reservas ya existentes.
-create function privado_inscripciones.proteger_cupo_004() returns trigger
-language plpgsql security definer set search_path = '' as $$
-begin
-  if current_setting('transaction_isolation') <> 'read committed' then
-    raise exception 'Revisión de cupo requiere READ COMMITTED' using errcode='25000';
-  end if;
-  perform pg_catalog.pg_advisory_xact_lock(2026003, 1);
-  if new.cupo_maximo is not null and (select count(*) from public.inscripciones
-    where competencia_id=new.id and estado in ('pendiente','aceptada')) > new.cupo_maximo then
-    raise exception 'Cupo inferior a reservas vigentes' using errcode='23514';
-  end if;
-  return new;
-end;
-$$;
-create trigger c_proteger_cupo before update on public.competencias
-  for each row execute function privado_inscripciones.proteger_cupo_004();
 
 -- RPC estrechas: el cliente no escribe snapshots, auditoría ni estados arbitrarios.
 create function public.solicitar_inscripcion(p_jugador_id bigint,p_competencia_id bigint,p_referencia_representacion text default null)

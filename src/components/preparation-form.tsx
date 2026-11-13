@@ -1,13 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { savePreparation, saveStageFormat, approvePreparation } from "@/app/panel/juez-general/preparacion/actions";
 import { STAGES, STAGE_LABELS, preparationLock, type Preparation, type StageFormat, type Stage } from "@/lib/preparacion-deportiva";
-import { localDateTime, repeatedHourChoice, displayLeagueTime, type Competition } from "@/lib/competencias";
+import { localDateTime, repeatedHourChoice, santiagoCandidates, displayLeagueTime, type Competition } from "@/lib/competencias";
 import type { CatalogState } from "@/lib/catalogos";
 
 function Feedback({ state }: { state: CatalogState }) {
-  return <>{state.error && <p role="alert" className="mb-3 rounded-xl bg-red-50 p-3 text-red-900">{state.error}</p>}{state.success && <p role="status" className="mb-3 rounded-xl bg-green-50 p-3 text-green-900">{state.success}</p>}{state.errors && <ul className="mb-3 list-inside list-disc text-sm text-red-900">{Object.entries(state.errors).map(([k, v]) => <li key={k}>{k}: {v}</li>)}</ul>}</>;
+  return <>{state.error && <p role="alert" className="mb-3 rounded-xl bg-blue-50 p-3 text-amber-950">{state.error}</p>}{state.success && <p role="status" className="mb-3 rounded-xl bg-green-50 p-3 text-green-900">{state.success}</p>}{state.errors && <ul className="mb-3 list-inside list-disc text-sm text-amber-950">{Object.entries(state.errors).map(([k, v]) => <li key={k}>{k}: {v}</li>)}</ul>}</>;
 }
 function StageForm({ seasonId, dateId, competition, stage, record, locked }: { seasonId: number; dateId: number; competition: Competition; stage: Stage; record: StageFormat | null; locked: boolean }) {
   const [state, action, pending] = useActionState(saveStageFormat.bind(null, seasonId, dateId, competition.id, stage, record?.actualizado_en ?? null), {} as CatalogState);
@@ -21,19 +21,21 @@ export function PreparationForm({ seasonId, dateId, day, competition, record, fo
   const [state, action, pending] = useActionState(savePreparation.bind(null, seasonId, dateId, competition.id, record?.actualizado_en ?? null), {} as CatalogState);
   const [approval, approve, approving] = useActionState(approvePreparation.bind(null, seasonId, dateId, competition.id, record?.actualizado_en ?? null), {} as CatalogState);
   const lock = preparationLock(competition, record);
+  const [localStart, setLocalStart] = useState(localDateTime(record?.inicio_programado ?? null));
+  const [minimum, setMinimum] = useState(String(record?.minimo_participantes ?? ""));
   const value = (key: string, fallback = "") => state.values?.[key] ?? String(record?.[key as keyof Preparation] ?? fallback);
   return <section id="preparation-form" className="panel-card space-y-5" aria-label={`Preparar competencia ${competition.id}`}>
     <h3 className="text-xl font-bold">Preparar competencia #{competition.id}</h3>
     {lock && <p role="status" className="rounded-xl bg-amber-50 p-3 text-amber-900">{lock}</p>}
     <p className="text-sm text-slate-600">Guarda primero el borrador y luego cada etapa. La aprobación utiliza únicamente los datos guardados. No se completan reglas pendientes.</p>
     <form action={action}><Feedback state={state}/><fieldset disabled={!!lock || pending || approving} className="grid gap-4 sm:grid-cols-2">
-      <label className="form-label">Inicio deportivo · America/Santiago<input className="input" name="inicio_programado" type="datetime-local" step="0.001" min={`${day}T00:00`} max={`${day}T23:59:59.999`} defaultValue={state.values?.inicio_programado ?? localDateTime(record?.inicio_programado ?? null)}/></label>
-      <label className="form-label">Ocurrencia si la hora se repite<select className="input" name="ocurrencia" defaultValue={state.values?.ocurrencia ?? repeatedHourChoice(record?.inicio_programado ?? null)}><option value="">Seleccionar solo si se repite</option><option value="primera">Primera ocurrencia</option><option value="segunda">Segunda ocurrencia</option></select></label>
-      <label className="form-label">Mínimo de participantes<input className="input" name="minimo_participantes" type="number" min="1" max="2147483647" defaultValue={value("minimo_participantes")}/></label>
+      <label className="form-label">Inicio deportivo · America/Santiago<input className="input" name="inicio_programado" type="datetime-local" step="0.001" min={`${day}T00:00`} max={`${day}T23:59:59.999`} value={localStart} onChange={event => setLocalStart(event.target.value)}/></label>
+      {santiagoCandidates(localStart).length > 1 && <label className="form-label">Ocurrencia si la hora se repite<select className="input" name="ocurrencia" defaultValue={state.values?.ocurrencia ?? repeatedHourChoice(record?.inicio_programado ?? null)}><option value="">Seleccionar solo si se repite</option><option value="primera">Primera ocurrencia</option><option value="segunda">Segunda ocurrencia</option></select></label>}
+      <label className="form-label">Mínimo de participantes<input className="input" name="minimo_participantes" type="number" min="1" max="2147483647" value={minimum} onChange={event => setMinimum(event.target.value)}/></label>
       {(["grupo_minimo", "grupo_maximo"] as const).map(key => <label key={key} className="form-label">{key === "grupo_minimo" ? "Tamaño mínimo de grupo" : "Tamaño máximo de grupo"}<select className="input" name={key} defaultValue={value(key)}><option value="">Pendiente</option><option value="3">3 participantes</option><option value="4">4 participantes</option></select></label>)}
       <label className="form-label">Formato deportivo<select className="input" name="formato_competencia" defaultValue={value("formato_competencia")}><option value="">Pendiente</option><option value="grupos_eliminacion_simple">Grupos y eliminación simple</option></select></label>
-      <label className="form-label">Motivo de resolución excepcional<textarea className="input" name="motivo_resolucion" maxLength={2000} defaultValue={value("motivo_resolucion")}/></label>
-      <label className="form-label">Referencia documental de resolución<input className="input" name="referencia_resolucion" maxLength={1000} defaultValue={value("referencia_resolucion")}/></label>
+      {Number(minimum) > 0 && Number(minimum) < 4 ? <><label className="form-label">Motivo de resolución excepcional<textarea className="input" name="motivo_resolucion" maxLength={2000} defaultValue={value("motivo_resolucion")}/></label>
+      <label className="form-label">Referencia documental de resolución<input className="input" name="referencia_resolucion" maxLength={1000} defaultValue={value("referencia_resolucion")}/></label></> : <><input type="hidden" name="motivo_resolucion" value={record?.motivo_resolucion ?? ""}/><input type="hidden" name="referencia_resolucion" value={record?.referencia_resolucion ?? ""}/></>}
       <p className="text-sm sm:col-span-2">Un mínimo inferior a cuatro exige motivo y referencia documental. Los tamaños de grupo admitidos por 003 son tres o cuatro. El reglamento se toma de la categoría; aquí no se valida ni modifica.</p>
       <button className="btn-primary">{pending ? "Guardando…" : "Guardar borrador deportivo"}</button>
     </fieldset></form>

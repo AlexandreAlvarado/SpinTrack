@@ -9,7 +9,13 @@ import { COMPETITIONS_PATH, COMPETITION_COLUMNS, competitionError, competitionTi
 export async function saveCompetition(seasonId: number, dateId: number, id: number | null, _previous: CompetitionState, form: FormData): Promise<CompetitionState> {
   await requireRole("administrador");
   if (!validId(String(seasonId)) || !validId(String(dateId)) || (id !== null && !validId(String(id)))) return { error: "La solicitud no es válida." };
-  const { payload, values, errors } = validateCompetition(form, id !== null);
+  // Financial values are no longer accepted from the UI, even in forged requests.
+  // Omit the column on INSERT/UPDATE: preserve stored values and the nullable default.
+  const administrativeForm = new FormData();
+  for (const [key, value] of form.entries()) if (key !== "tarifa_clp") administrativeForm.append(key, value);
+  const { payload, values, errors } = validateCompetition(administrativeForm, id !== null);
+  delete payload.tarifa_clp;
+  delete values.tarifa_clp;
   if (Object.keys(errors).length) return { error: "Revisa los campos indicados.", values, errors };
   try {
     const db = await createClient();
@@ -20,11 +26,11 @@ export async function saveCompetition(seasonId: number, dateId: number, id: numb
       const result = await db.from("competencias").select(COMPETITION_COLUMNS).eq("id", id).eq("temporada_id", seasonId).eq("fecha_id", dateId).maybeSingle();
       if (result.error || !result.data) return { error: "La competencia no existe en esta fecha o no está disponible.", values };
       existing = result.data as Competition;
-      if ((existing.publicada || existing.inscripciones_habilitadas) && ["tarifa_clp", "inscripcion_abre_en", "inscripcion_cierra_en"].some(key => {
+      if ((existing.publicada || existing.inscripciones_habilitadas) && ["inscripcion_abre_en", "inscripcion_cierra_en"].some(key => {
         const before = existing![key as keyof Competition];
         const after = payload[key];
         return key.startsWith("inscripcion_") && before && after ? new Date(String(before)).getTime() !== new Date(String(after)).getTime() : before !== after;
-      })) return { error: "Primero guarda la competencia sin publicación y con inscripciones deshabilitadas, conservando las condiciones actuales. Después podrás cambiar tarifa o plazos.", values };
+      })) return { error: "Primero guarda la competencia sin publicación y con inscripciones deshabilitadas, conservando los plazos actuales. Después podrás cambiar los plazos.", values };
       if (existing.publicada || existing.inscripciones_habilitadas) {
         // Conservar precisión PostgreSQL al retirar publicación, incluso si el timestamp
         // original contiene microsegundos que datetime-local/Date no representan.
@@ -47,7 +53,7 @@ export async function saveCompetition(seasonId: number, dateId: number, id: numb
     // No es una excepción para publicar, habilitar ni introducir nuevos plazos inválidos.
     const safeWithdrawal = existing && !payload.publicada && !payload.inscripciones_habilitadas
       && (payload.activo === existing.activo || payload.activo === false)
-      && ["tarifa_clp", "inscripcion_abre_en", "inscripcion_cierra_en"].every(key => {
+      && ["inscripcion_abre_en", "inscripcion_cierra_en"].every(key => {
         const before = existing[key as keyof Competition];
         const after = payload[key];
         return key.startsWith("inscripcion_") && before && after ? new Date(String(before)).getTime() === new Date(String(after)).getTime() : before === after;
@@ -56,7 +62,7 @@ export async function saveCompetition(seasonId: number, dateId: number, id: numb
     if ((payload.publicada || payload.inscripciones_habilitadas) && timing.sportsIssue) return { error: timing.sportsIssue, values };
     if (payload.publicada && !sports?.configuracion_aprobada) return { error: "No se puede publicar: falta aprobación deportiva del Juez General.", values };
     if (payload.inscripciones_habilitadas) {
-      const blockers = openingBlockers(payload as unknown as Competition, date.data, sports);
+      const blockers = openingBlockers({ ...payload, tarifa_clp: existing?.tarifa_clp ?? null } as unknown as Competition, date.data, sports);
       if (blockers.length) return { error: blockers.join(" "), values };
     }
     const result = id === null

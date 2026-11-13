@@ -14,7 +14,7 @@ export function CatalogForm({ catalog, record, localidades, asociaciones, cancel
 }) {
   const [state, action, pending] = useActionState<CatalogState, FormData>(saveCatalog.bind(null, catalog, record?.id ?? null), {});
   const value = (name: keyof CatalogRecord) => state.values?.[name] ?? String(record?.[name] ?? (name === "activo" ? true : ""));
-  const error = (name: string) => state.errors?.[name] ? <span id={`error-${name}`} className="mt-1 block text-sm text-red-700">{state.errors[name]}</span> : null;
+  const error = (name: string) => state.errors?.[name] ? <span id={`error-${name}`} className="mt-1 block text-sm text-amber-900">{state.errors[name]}</span> : null;
   const relation = (name: "localidad_id" | "asociacion_id", label: string, options: CatalogOption[]) => (
     <label className="form-label">{label} (opcional)
       <select className="input" name={name} defaultValue={value(name)} aria-invalid={!!state.errors?.[name]} aria-describedby={state.errors?.[name] ? `error-${name}` : undefined}>
@@ -54,7 +54,7 @@ export function CatalogStatusButton({ catalog, record }: { catalog: Catalog; rec
     <button className="btn-secondary !px-3 !py-2 text-sm disabled:opacity-60" disabled={pending} type="submit" aria-label={`${record.activo ? "Desactivar" : "Activar"} ${record.nombre} #${record.id}`}>
       {pending ? "Actualizando…" : record.activo ? "Desactivar" : "Activar"}
     </button>
-    {state.error && <p role="alert" className="max-w-xs text-xs text-red-700">{state.error}</p>}
+    {state.error && <p role="alert" className="max-w-xs text-xs text-amber-900">{state.error}</p>}
     {state.success && <p role="status" className="max-w-xs text-xs text-green-800">{state.success}</p>}
   </form>;
 }

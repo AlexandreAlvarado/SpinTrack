@@ -5,14 +5,53 @@
 @layer base {
   * { box-sizing: border-box; }
   body { background: #f6f8fb; }
+  :focus-visible { outline: 3px solid #539DDF; outline-offset: 3px; }
+  button, input, select, textarea { font: inherit; }
+  button:disabled { cursor: not-allowed; opacity: .55; }
+  summary { cursor: pointer; }
+  table { border-collapse: collapse; }
+  thead { @apply bg-slate-50 text-ink; }
+  th, td { @apply px-3 py-3; }
+  tbody tr { @apply border-b border-slate-100; }
+  tbody tr:hover { @apply bg-slate-50; }
+  dialog { @apply max-w-lg rounded-2xl border border-slate-200 bg-white p-6 text-ink shadow-xl; }
+  dialog::backdrop { background: rgb(8 37 84 / .45); }
 }
 
 @layer components {
-  .container-page { @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8; }
-  .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand; }
-  .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-800 transition hover:bg-slate-100; }
-  .panel-card { @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-sm; }
-  .input { @apply mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-brand focus:ring-2 focus:ring-red-100; }
-  .form-label { @apply block text-sm font-medium text-slate-700; }
-  .tag { @apply inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700; }
+  .container-page { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
+  .btn-primary { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand/90; }
+  .btn-secondary { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:border-sky hover:bg-blue-50; }
+  .panel-card { @apply min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6; }
+  .input { @apply mt-1 min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-ink outline-none focus:border-sky focus:ring-2 focus:ring-sky/25 disabled:bg-slate-100; }
+  .form-label { @apply block min-w-0 text-sm font-semibold text-slate-700; }
+  .tag { @apply inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-brand; }
+  .nav-link { @apply rounded-lg px-3 py-3 text-ink transition hover:bg-blue-50; }
+  .sidebar-link { @apply block rounded-xl px-3 py-3 text-sm font-semibold text-slate-600 hover:bg-blue-50 hover:text-brand; }
+  .sidebar-link[aria-current="page"] { @apply bg-brand text-white; }
+  .message-error, [role="alert"] { @apply rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950; }
+  .message-success { @apply rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-900; }
+  .empty-state { @apply rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600; }
+  .loading-state { @apply mx-auto my-8 max-w-7xl rounded-xl border border-slate-200 bg-white p-6 text-slate-600; }
+  .dashboard-content { @apply min-w-0; }
+  .dashboard-content > nav { @apply hidden; }
+  .overflow-x-auto { scrollbar-color: #539DDF #f1f5f9; }
+  .overflow-x-auto table { min-width: 640px; }
+  @media (max-width: 639px) {
+    .dashboard-content form[role="search"] { @apply grid grid-cols-1; }
+    .dashboard-content form[role="search"] > * { @apply w-full; }
+  }
+}
+@layer components {
+  .dashboard-sidebar nav { @apply mb-3 flex-col gap-1; }
+  .dashboard-content > nav { @apply rounded-xl border border-slate-200 bg-white p-2; }
+  .dashboard-content > nav .sidebar-link { @apply text-xs; }
+}
+@layer components {
+  .status-badge { @apply inline-flex rounded-full border px-3 py-1 text-xs font-bold; }
+  .status-pending { @apply border-amber-200 bg-amber-50 text-amber-900; }
+  .status-approved { @apply border-green-200 bg-green-50 text-green-900; }
+  .status-neutral { @apply border-slate-200 bg-slate-50 text-slate-700; }
+  .confirmation-panel { @apply rounded-2xl border border-sky/40 bg-blue-50 p-5; }
+  input[type="checkbox"], input[type="radio"] { accent-color: #082554; width: 1.1rem; height: 1.1rem; flex-shrink: 0; }
 }

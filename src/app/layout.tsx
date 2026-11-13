@@ -14,9 +14,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="es">
       <body className="min-h-screen bg-slate-50 text-ink antialiased">
+        <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-white focus:p-4">Saltar al contenido</a>
         <ServiceWorkerRegister />
         <Header />
-        <main>{children}</main>
+        <main id="contenido">{children}</main>
         <footer className="mt-16 border-t border-slate-200 bg-white px-6 py-7 text-center text-xs text-slate-500">
           Proyecto de Título · Liga Regional de Tenis de Mesa Los Ríos · Versión inicial de desarrollo
         </footer>

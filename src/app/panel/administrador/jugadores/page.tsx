@@ -1,7 +1,6 @@
 import Link from "next/link";
 import Form from "next/form";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { AdminNavigation } from "@/components/admin-navigation";
 import { PlayerForm, PlayerStatusButton } from "@/components/player-form";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -66,7 +65,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
   const filtered = !!(q || localidad || club || estado !== "todos" || cuenta !== "todas");
 
   return <DashboardShell role={profile.rol} nombre={profile.nombre}>
-    <AdminNavigation current={PLAYERS_PATH}/>
+    
     <h2 className="mb-3 text-2xl font-bold">Gestión de jugadores</h2>
     <p className="mb-5 text-sm text-slate-600">Registro deportivo privado. Identifica a cada persona por su ID, no solo por su nombre.</p>
     <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
@@ -82,7 +81,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
         {optionsError && <p role="alert" className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">No se pudieron cargar todas las opciones de localidades, clubes o cuentas. El formulario está temporalmente bloqueado para proteger las relaciones existentes.</p>}
         {listError ? <p role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">No se pudo consultar el listado. Comprueba la conexión y los permisos de Supabase. <Link href={href()} className="font-semibold underline">Reintentar</Link></p>
           : records.length === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-slate-600">{filtered ? "No hay jugadores para estos filtros." : page > 1 ? "No hay jugadores en esta página." : "Todavía no hay jugadores registrados. Registra el primero con sus datos reales."}</p>
-          : <><p className="mb-3 text-sm text-slate-500">{count} jugadores encontrados · Página {page}</p><div className="overflow-x-auto">
+          : <><p className="mb-3 text-sm text-slate-500">{count} jugadores encontrados · Página {page}</p><div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Tabla desplazable horizontalmente">
             <table className="w-full text-left text-sm"><caption className="sr-only">Jugadores registrados</caption>
               <thead><tr className="border-b text-slate-500"><th scope="col" className="p-3">Jugador</th><th scope="col" className="p-3">Nacimiento</th><th scope="col" className="p-3">Procedencia / Club</th><th scope="col" className="p-3">Estado / Cuenta</th><th scope="col" className="p-3">Acciones</th></tr></thead>
               <tbody>{records.map(item => <tr key={item.id} className="border-b border-slate-100 align-top">

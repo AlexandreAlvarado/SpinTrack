@@ -145,7 +145,7 @@ export function openingBlockers(c: Pick<Competition, "activo" | "publicada" | "t
   if (sports?.estado_deportivo !== "preparada") reasons.push("La competencia debe estar preparada por el Juez General.");
   if (date.estado !== "publicada") reasons.push("La fecha debe estar publicada.");
   if (!c.activo || !c.publicada) reasons.push("La competencia debe estar activa y publicada.");
-  if (c.tarifa_clp === null) reasons.push("Falta la tarifa confirmada.");
+  if (c.tarifa_clp === null) reasons.push("La base de datos conserva un requisito heredado pendiente de actualización del esquema. No se pueden habilitar nuevas inscripciones hasta resolverlo.");
   if (!c.inscripcion_abre_en || !c.inscripcion_cierra_en) reasons.push("Faltan los plazos de inscripción.");
   const timing = competitionTimingIssues(c, date, sports);
   return [...new Set([...reasons, ...Object.values(timing.errors), ...(timing.sportsIssue ? [timing.sportsIssue] : [])])];

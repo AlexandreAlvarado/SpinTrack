@@ -52,6 +52,7 @@ Soy el único desarrollador de una aplicación web progresiva (PWA) para gestion
 - La futura programación deberá reservar intervalos [inicio, fin), no solo horas de inicio. Impedir solapamientos de mesa, persona jugadora o árbitro, así como arbitrar el propio encuentro; permitir simultaneidad con recursos distintos.
 - No inferir duración, descansos, criterios deportivos ni resolución automática de retrasos. Los intervalos estimados los define el Juez General y los retrasos no liberan automáticamente recursos en uso.
 - Las propuestas de nuevas tablas deben revisarse antes de generar migraciones. No modificar migraciones anteriores ni ejecutar nuevas migraciones en Supabase sin autorización.
+- Estado confirmado por el desarrollador: producción tiene la versión histórica de 004 (con cupo). NO reaplicar 004 local ni modificar 001–004. La corrección incremental es 005_eliminar_cupo_maximo.sql, con comprobación estricta de definiciones previas; ante diferencias, detener y revisar. No limpiar cupo_maximo ni datos reales. 006_retirar_dependencia_tarifa.sql queda preparada para revisión y aplicación manual; NO se ha aplicado remotamente. Reservar 007 para programación deportiva.
 
 ## Documentación oficial del proyecto
 - Bases deportivas: documentacion/referencias/BASES LIGA REGIONAL TDM LOS RIOS.pdf

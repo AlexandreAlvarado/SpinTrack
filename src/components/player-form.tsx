@@ -18,7 +18,7 @@ export function PlayerForm({ record, localidades, clubes, perfiles, today, cance
   const [state, action, pending] = useActionState<PlayerState, FormData>(savePlayer.bind(null, record?.id ?? null), {});
   const value = (name: keyof PlayerRecord) => state.values?.[name] ?? String(record?.[name] ?? (name === "activo" ? true : ""));
   const attrs = (name: string) => ({ "aria-invalid": !!state.errors?.[name], "aria-describedby": state.errors?.[name] ? `player-error-${name}` : undefined });
-  const error = (name: string) => state.errors?.[name] ? <span className="mt-1 block text-sm text-red-700" id={`player-error-${name}`}>{state.errors[name]}</span> : null;
+  const error = (name: string) => state.errors?.[name] ? <span className="mt-1 block text-sm text-amber-900" id={`player-error-${name}`}>{state.errors[name]}</span> : null;
   const relation = (name: "localidad_procedencia_id" | "club_id", label: string, options: CatalogOption[]) => <label className="form-label">{label} (opcional)
     <select name={name} className="input" defaultValue={value(name)} {...attrs(name)}><option value="">Sin asignar</option>
       {options.map(option => <option key={option.id} value={option.id}>{option.nombre} · #{option.id}{option.activo ? "" : " (inactivo)"}</option>)}
@@ -58,7 +58,7 @@ export function PlayerStatusButton({ record }: { record: PlayerRecord }) {
     <button type="submit" className="btn-secondary !px-3 !py-2 text-sm disabled:opacity-60" disabled={pending} aria-label={`${record.activo ? "Desactivar" : "Activar"} jugador #${record.id}`}>
       {pending ? "Actualizando…" : record.activo ? "Desactivar" : "Activar"}
     </button>
-    {state.error && <p role="alert" className="max-w-xs text-xs text-red-700">{state.error}</p>}
+    {state.error && <p role="alert" className="max-w-xs text-xs text-amber-900">{state.error}</p>}
     {state.success && <p role="status" className="max-w-xs text-xs text-green-800">{state.success}</p>}
   </form>;
 }

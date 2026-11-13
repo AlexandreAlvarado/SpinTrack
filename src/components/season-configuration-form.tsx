@@ -18,7 +18,7 @@ export function SeasonConfigurationForm({ kind, seasonId, record, categories, le
     <h3 className="mb-4 text-xl font-bold">{record ? `Editar #${record.id}` : "Registrar"} {kind === "reglamentos" ? "reglamento" : "combinación"}</h3>
     {state.error && <p role="alert" className="mb-4 rounded-xl bg-amber-50 p-3 text-amber-900">{state.error}</p>}
     {state.success && <p role="status" className="mb-4 rounded-xl bg-green-50 p-3 text-green-800">{state.success}</p>}
-    {state.errors && <ul aria-label="Campos que requieren corrección" className="mb-4 list-inside list-disc text-sm text-red-700">{Object.entries(state.errors).map(([key, message]) => <li key={key}>{message}</li>)}</ul>}
+    {state.errors && <ul aria-label="Campos que requieren corrección" className="mb-4 list-inside list-disc text-sm text-amber-900">{Object.entries(state.errors).map(([key, message]) => <li key={key}>{message}</li>)}</ul>}
     <form action={action}><fieldset disabled={pending} className="space-y-4">
       {kind === "reglamentos" ? <>
         {record ? <p className="text-sm">Versión: <strong>{(record as Rule).version}</strong>. La temporada y la versión no pueden cambiarse.</p> : field("version", "Versión documental", 50, true)}

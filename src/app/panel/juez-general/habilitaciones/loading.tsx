@@ -1,3 +1,3 @@
 export default function Loading() {
-  return <p role="status" className="panel-card">Cargando jugadores y habilitaciones deportivas…</p>;
+  return <p role="status" className="loading-state">Cargando jugadores y habilitaciones deportivas…</p>;
 }

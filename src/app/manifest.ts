@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Competencias, programación y resultados de tenis de mesa",
     start_url: "/",
     display: "standalone",
-    background_color: "#0d1726",
-    theme_color: "#d52a36",
+    background_color: "#082554",
+    theme_color: "#082554",
     lang: "es-CL",
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

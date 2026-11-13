@@ -1,3 +1,3 @@
 export default function Loading() {
-  return <p role="status" className="p-8">Cargando reglamentos y categorías por temporada…</p>;
+  return <p role="status" className="loading-state">Cargando reglamentos y categorías por temporada…</p>;
 }

@@ -1,5 +1,5 @@
 /* PWA - Caché deliberadamente limitada: nunca almacena paneles privados ni marcadores. */
-const CACHE = "liga-losrios-public-v1";
+const CACHE = "liga-losrios-public-v2";
 const SHELL = ["/offline", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {

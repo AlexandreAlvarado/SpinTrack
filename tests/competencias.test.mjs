@@ -17,6 +17,7 @@ function load(path, mocks = {}) {
 }
 const catalogs = load("../src/lib/catalogos.ts");
 const domain = load("../src/lib/competencias.ts", { "./catalogos": catalogs });
+const suggestions = load("../src/lib/preparacion-rapida.ts", { "./preparacion-deportiva": { STAGES: [] } });
 const overview = load("../src/components/journey-overview.tsx", {
   "react/jsx-runtime": jsx,
   "next/link": { default: ({ children, ...props }) => React.createElement("a", props, children) },
@@ -131,7 +132,7 @@ test("cada escritura comprueba Administrador antes de conectar", async () => {
 test("identificadores de ámbito y campos inválidos no generan escrituras", async () => {
   const h = harness();
   for (const args of [[0, 2, null], [1, -1, null], [1, 2, -1]]) assert.ok((await h.raw(...args, {}, form())).error);
-  assert.ok((await h.save(null, { tarifa_clp: "-1" })).errors.tarifa_clp);
+  assert.ok((await h.save(null, { inscripcion_abre_en: "inválida" })).errors.inscripcion_abre_en);
   assert.equal(h.calls.clients, 0);
 });
 test("fecha o categoría de otra temporada son rechazadas antes de escribir", async () => {
@@ -145,7 +146,7 @@ test("creación de borrador solo escribe competencias y columnas permitidas", as
   const h = harness();
   assert.ok((await h.save(null, { temporada_id: "999", fecha_id: "999", configuracion_aprobada: "true" })).success);
   assert.equal(h.calls.writes.length, 1);
-  assert.deepEqual(h.calls.writes[0], { table: "competencias", mode: "insert", p: { categoria_temporada_id: 3, tarifa_clp: null, inscripcion_abre_en: null, inscripcion_cierra_en: null, activo: true, publicada: false, inscripciones_habilitadas: false, temporada_id: 1, fecha_id: 2 } });
+  assert.deepEqual(h.calls.writes[0], { table: "competencias", mode: "insert", p: { categoria_temporada_id: 3, inscripcion_abre_en: null, inscripcion_cierra_en: null, activo: true, publicada: false, inscripciones_habilitadas: false, temporada_id: 1, fecha_id: 2 } });
 });
 test("rechaza categoría inactiva y no publica ni habilita sin aprobación deportiva", async () => {
   assert.ok((await harness({ category: { id: 3, activo: false } }).save()).error);
@@ -168,9 +169,10 @@ test("competencia inexistente no se actualiza ni se anuncia éxito", async () =>
 });
 test("condiciones publicadas se retiran primero sin cambiarlas en el mismo guardado", async () => {
   const h = harness({ record: { ...draft, publicada: true, tarifa_clp: 4000 }, sports: approved });
-  assert.match((await h.save(5, { tarifa_clp: "5000" })).error, /Primero guarda/);
+  assert.match((await h.save(5, { inscripcion_abre_en: "2026-08-01T12:00" })).error, /Primero guarda/);
   assert.equal(h.calls.writes.length, 0);
-  assert.ok((await h.save(5, { tarifa_clp: "4000" })).success);
+  assert.ok((await h.save(5, { tarifa_clp: "5000" })).success);
+  assert.equal(Object.hasOwn(h.calls.writes[0].p, "tarifa_clp"), false);
 });
 test("retirar publicación preserva precisión temporal de PostgreSQL", async () => {
   const timestamp = "2026-08-01T16:00:00.123456+00:00";
@@ -180,7 +182,7 @@ test("retirar publicación preserva precisión temporal de PostgreSQL", async ()
 });
 test("habilitación aprobada válida; rechaza fecha en borrador y cierre posterior", async () => {
   const extra = { publicada: "true", inscripciones_habilitadas: "true", tarifa_clp: "0", inscripcion_abre_en: "2026-08-01T12:00", inscripcion_cierra_en: "2026-08-06T20:00" };
-  assert.ok((await harness({ sports: approved }).save(5, extra)).success);
+  assert.ok((await harness({ sports: approved, record: { ...draft, tarifa_clp: 0 } }).save(5, extra)).success);
   for (const [options, fields] of [[{ sports: approved, date: { id: 2, fecha: "2026-08-08", estado: "borrador" } }, {}], [{ sports: approved }, { inscripcion_cierra_en: "2026-08-09T12:00" }]]) {
     const h = harness(options); assert.ok((await h.save(5, { ...extra, ...fields })).error); assert.equal(h.calls.writes.length, 0);
   }
@@ -194,13 +196,13 @@ test("duplicados, integridad, RLS y errores de red se traducen sin filtrar detal
   assert.doesNotMatch((await harness({ offline: true }).save()).error, /secreto interno/);
 });
 
-function renderForm({ record = null, sports = null, state = {}, pending = false, registeredCategoryIds = [], initialCategoryId = null } = {}) {
+function renderForm({ record = null, sports = null, state = {}, pending = false, registeredCategoryIds = [], initialCategoryId = null, readOnly = false } = {}) {
   const { CompetitionForm } = load("../src/components/competition-form.tsx", {
     react: { useActionState: () => [state, "/simulada", pending] }, "react/jsx-runtime": jsx,
     "next/link": { default: ({ children, ...props }) => React.createElement("a", props, children) },
     "@/lib/competencias": domain, "@/app/panel/administrador/competencias/actions": { saveCompetition: () => {} },
   });
-  return renderToStaticMarkup(React.createElement(CompetitionForm, { seasonId: 1, date: { id: 2, fecha: "2026-08-08", estado: "publicada" }, record, sports, registeredCategoryIds, initialCategoryId, categories: [{ id: 3, label: "Peneca / Inicial", activo: true }, { id: 4, label: "Inactiva", activo: false }], cancelHref: "/volver" }));
+  return renderToStaticMarkup(React.createElement(CompetitionForm, { seasonId: 1, date: { id: 2, fecha: "2026-08-08", estado: "publicada" }, record, sports, readOnly, registeredCategoryIds, initialCategoryId, categories: [{ id: 3, label: "Peneca / Inicial", activo: true }, { id: 4, label: "Inactiva", activo: false }], cancelHref: "/volver" }));
 }
 test("formulario nuevo muestra pendiente, horario Santiago y opciones protegidas", () => {
   const html = renderForm();
@@ -234,8 +236,8 @@ async function renderPage(query = {}, { fail = false, denied = false, rows = {} 
     "next/form": { default: ({ children, ...props }) => React.createElement("form", props, children) },
     "@/components/dashboard-shell": { DashboardShell: ({ children }) => React.createElement("main", null, children) },
     "@/components/admin-navigation": { AdminNavigation: () => null },
-    "@/components/competition-form": { CompetitionForm: () => React.createElement("div", { "data-testid": "competition-form" }, "Formulario disponible") },
-    "@/components/journey-overview": overview,
+    "@/components/competition-form": { CompetitionForm: ({ record, readOnly = false }) => React.createElement("div", { "data-testid": "competition-form", "data-record": record?.id ?? "new", "data-read-only": String(readOnly) }, "Formulario disponible") },
+    "@/lib/preparacion-rapida": suggestions,
     "@/lib/catalogos": catalogs, "@/lib/competencias": domain,
     "@/lib/auth": { requireRole: async role => { assert.equal(role, "administrador"); if (denied) throw new Error("denegado"); return { rol: role, nombre: "Administrador" }; } },
     "@/lib/supabase/server": { createClient: async () => ({ from: table => {
@@ -256,21 +258,24 @@ test("página exige Administrador y selecciona temporada antes de consultar fech
 test("página filtra fechas por temporada y no ofrece referencias cruzadas", async () => {
   const result = await renderPage({ temporada: "1", fecha: "99" });
   assert.doesNotMatch(result.html, /Ajena|data-testid="competition-form"/);
-  assert.match(result.html, /Selecciona una fecha válida/);
+  assert.match(result.html, /Selecciona una jornada válida/);
   assert.ok(!result.calls.includes("competencias"));
 });
 test("listado vacío y error de consulta son estados distintos y bloquea formulario en error", async () => {
   const query = { temporada: "1", fecha: "2" };
   const empty = await renderPage(query);
-  assert.match(empty.html, /Todavía no hay competencias/); assert.match(empty.html, /data-testid="competition-form"/);
-  assert.match(empty.html, /no constituye confirmación oficial/);
+  assert.match(empty.html, /Por crear/); assert.doesNotMatch(empty.html, /data-testid="competition-form"/);
+  assert.match(empty.html, /Jornada en borrador: inscripciones bloqueadas/);
   const failed = await renderPage(query, { fail: true });
   assert.match(failed.html, /role="alert"/); assert.doesNotMatch(failed.html, /Todavía no hay competencias|data-testid="competition-form"/);
 });
 test("listado muestra aprobación solo desde control deportivo y filtra sin mutaciones", async () => {
   const result = await renderPage({ temporada: "1", fecha: "2" }, { rows: { competencias: [draft] } });
-  assert.match(result.html, /Sin aprobación deportiva del Juez General/);
-  assert.match(result.html, /Tarifa:.*Pendiente/);
+  assert.match(result.html, /Pendiente/);
+  assert.doesNotMatch(result.html, /Tarifa:|data-testid="competition-form"/);
+  const review = await renderPage({ temporada: "1", fecha: "2", revisar: "5" }, { rows: { competencias: [draft] } });
+  assert.match(review.html, /data-testid="competition-form"/);
+  assert.doesNotMatch(review.html, /Tarifa:|competition-review/);
   const filtered = await renderPage({ temporada: "1", fecha: "2", q: "inexistente" }, { rows: { competencias: [draft] } });
   assert.match(filtered.html, /No hay competencias para estos filtros/);
 });
@@ -355,14 +360,14 @@ test("jornada muestra categorías asociadas y por asociar, con inicios en solo l
 test("búsqueda no altera contadores ni cobertura de categorías de la jornada", async () => {
   const query = { temporada: "1", fecha: "2", q: "inexistente" };
   const result = await renderPage(query, { rows: { competencias: [draft, { ...draft, id: 6, categoria_temporada_id: 4 }], categorias_temporada: [{ id: 3, categoria_id: 1, nivel_id: 1, temporada_id: 1, codigo: "peneca_inicial", activo: true }, { id: 4, categoria_id: 1, nivel_id: 1, temporada_id: 1, codigo: "otra", activo: true }] } });
-  assert.match(result.html, /Competencias configuradas<\/dt><dd[^>]*>2<\/dd>/);
-  assert.match(result.html, /Editar \/ revisar competencia #5/);
+  assert.match(result.html, /2 competencias registradas/);
+  assert.doesNotMatch(result.html, /Competencias configuradas<\/dt>|panel-card.*Editar \/ revisar/);
   assert.match(result.html, /No hay competencias para estos filtros/);
 });
 test("la jornada adicional se carga dinámicamente y no crea registros por categoría", async () => {
   const result = await renderPage({ temporada: "1", fecha: "8" }, { rows: { fechas: [{ id: 2, temporada_id: 1, numero: 7, fecha: "2026-11-07", comuna: "Valdivia", recinto: "Uno", estado: "borrador" }, { id: 8, temporada_id: 1, numero: 8, fecha: "2026-11-14", comuna: "Valdivia", recinto: "Dos", estado: "publicada" }] } });
   assert.match(result.html, /07-11-2026/); assert.match(result.html, /14-11-2026/);
-  assert.match(result.html, /Recinto compartido/);
+  assert.match(result.html, /Jornada 8 · 14-11-2026 · Valdivia · Dos/);
   assert.doesNotMatch(result.html, /No se establece automáticamente el 7 de noviembre/);
 });
 test("valor heredado se advierte para revisión sin volver a mostrar un campo de cupo", async () => {
@@ -370,4 +375,98 @@ test("valor heredado se advierte para revisión sin volver a mostrar un campo de
   assert.match(result.html, /Hay valores heredados de máximo general/);
   assert.match(result.html, /#5/);
   assert.doesNotMatch(result.html, /name="cupo_maximo"|Cupo:/);
+});
+
+
+test("vista compacta: cinco columnas, sin tarjetas deportivas ni formulario permanente", async () => {
+  const { html } = await renderPage({ temporada: "1", fecha: "2" });
+  for (const title of ["Categoría", "Estado administrativo", "Inicio deportivo", "Inscripciones", "Acción"]) assert.ok(html.includes(title), title);
+  assert.ok(html.includes('aria-label="Competencias de la jornada"'));
+  assert.ok(html.includes("table-fixed"));assert.ok(html.includes("md:table-row"));assert.ok(html.includes("md:hidden"));
+  assert.ok(!html.includes("overflow-x-auto"));assert.ok(!html.includes("data-testid=\"competition-form\""));
+  for (const text of ["Una jornada, múltiples competencias", "futura simultaneidad", "Competencias configuradas", "Categorías asociadas y por asociar"]) assert.ok(!html.includes(text), text);
+});
+
+test("categorías activas se cargan automáticamente; Crear solo para faltantes", async () => {
+  const rows = { competencias: [{ ...draft, activo: false }], categorias_temporada: [
+    { id: 3, temporada_id: 1, categoria_id: 1, nivel_id: 1, codigo: "asociada", activo: true },
+    { id: 4, temporada_id: 1, categoria_id: 1, nivel_id: 1, codigo: "faltante", activo: true },
+    { id: 6, temporada_id: 1, categoria_id: 1, nivel_id: 1, codigo: "inactiva", activo: false },
+  ] };
+  const { html } = await renderPage({ temporada: "1", fecha: "2" }, { rows });
+  assert.ok(html.includes("categoria=4"));assert.ok(!html.includes("categoria=3"));assert.ok(!html.includes("categoria=6"));
+  assert.ok(html.includes("gestionar=5"));assert.ok(html.includes("gestionar=5"));assert.ok(html.includes("Inactiva"));assert.ok(html.includes("1 categorías por crear"));
+  const create = await renderPage({ temporada: "1", fecha: "2", categoria: "4" }, { rows });assert.ok(create.html.includes('data-testid="competition-form"'));
+  const existing = await renderPage({ temporada: "1", fecha: "2", categoria: "3" }, { rows });
+  assert.ok(!existing.html.includes('data-testid="competition-form"'));assert.ok(existing.html.includes("Categoría asociada a la competencia #5"));assert.ok(!existing.html.includes('role="alert"'));
+  const inactive = await renderPage({ temporada: "1", fecha: "2", categoria: "6" }, { rows });assert.ok(inactive.html.includes('role="alert"'));assert.ok(!inactive.html.includes('data-testid="competition-form"'));
+});
+
+test("no oculta competencias con categoría inactiva o no disponible", async () => {
+  const rows = { competencias: [draft, { ...draft, id: 6, categoria_temporada_id: 99, activo: false }], categorias_temporada: [{ id: 3, temporada_id: 1, categoria_id: 1, nivel_id: 1, activo: false }] };
+  const { html } = await renderPage({ temporada: "1", fecha: "2" }, { rows });
+  assert.ok(html.includes("gestionar=5"));assert.ok(html.includes("gestionar=6"));assert.ok(html.includes("Categoría #99"));assert.ok(!html.includes("categoria=99"));assert.ok(!html.includes("categoria=3"));
+});
+
+test("Crear y Editar abren solo la competencia solicitada; IDs ajenos no abren formulario", async () => {
+  for (const query of [{ categoria: "3" }, { editar: "5" }]) {
+    const result = await renderPage({ temporada: "1", fecha: "2", ...query }, { rows: { competencias: query.editar ? [draft] : [] } });assert.ok(result.html.includes('data-testid="competition-form"'));
+  }
+  for (const query of [{ categoria: "999" }, { editar: "999" }, { revisar: "999" }]) {
+    const result = await renderPage({ temporada: "1", fecha: "2", ...query });assert.ok(result.html.includes('role="alert"'));assert.ok(!result.html.includes('data-testid="competition-form"'));
+  }
+});
+
+test("sugerencias oficiales limitadas a su jornada, sin reemplazar inicio guardado", async () => {
+  const date = { id: 2, temporada_id: 1, numero: 7, fecha: "2026-11-07", comuna: "Comuna", recinto: "Recinto", estado: "publicada" };
+  const rows = { fechas: [date] };
+  const suggested = await renderPage({ temporada: "1", fecha: "2" }, { rows });assert.ok(suggested.html.includes("13:00"));assert.ok(suggested.html.includes("Sugerido · sin guardar"));assert.ok(!suggested.html.includes('name="inicio_programado"'));
+  const other = await renderPage({ temporada: "1", fecha: "2" }, { rows: { fechas: [{ ...date, fecha: "2026-11-14" }] } });assert.ok(!other.html.includes("Sugerido · sin guardar"));
+  const saved = await renderPage({ temporada: "1", fecha: "2" }, { rows: { ...rows, competencias: [draft], competencia_control_deportivo: [{ ...approved, temporada_id: 1, inicio_programado: "2026-11-07T17:15:00Z" }] } });assert.ok(saved.html.includes("14:15"));assert.ok(!saved.html.includes("Sugerido · sin guardar"));
+});
+
+test("tabla advierte un inicio deportivo de otro día y conserva acceso a revisión", async () => {
+  const { html } = await renderPage({ temporada: "1", fecha: "2" }, { rows: { competencias: [draft], competencia_control_deportivo: [{ ...approved, temporada_id: 1, inicio_programado: "2026-08-09T17:00:00Z" }] } });
+  assert.ok(html.includes("Fecha por revisar"));assert.ok(html.includes("gestionar=5"));
+});
+
+test("configuración avanzada conserva campos y abre automáticamente errores o condiciones protegidas", () => {
+  const compact = renderForm();assert.ok(compact.includes("Configuración avanzada: plazos"));assert.ok(!compact.includes('<details open="">'));
+  for (const name of ["inscripcion_abre_en", "inscripcion_cierra_en", "inscripcion_abre_en_ocurrencia", "inscripcion_cierra_en_ocurrencia", "activo", "publicada", "inscripciones_habilitadas"]) assert.ok(compact.includes('name="' + name + '"'), name);
+  assert.ok(renderForm({ state: { errors: { inscripcion_abre_en: "Inválida" } } }).includes('<details open="">'));
+  assert.ok(renderForm({ record: { ...draft, publicada: true } }).includes('<details open="">'));
+});
+
+
+test("una acción Gestionar y una vista, incluidos enlaces anteriores", async () => {
+  const rows = { competencias: [draft] };
+  const list = await renderPage({ temporada: "1", fecha: "2" }, { rows });
+  assert.equal((list.html.match(/gestionar=5/g) ?? []).length, 1);assert.ok(list.html.includes("Gestionar"));
+  assert.ok(!list.html.includes("editar=5"));assert.ok(!list.html.includes("revisar=5"));assert.ok(!list.html.includes("Ver/Revisar"));
+  for (const key of ["gestionar", "editar", "revisar"]) {
+    const { html } = await renderPage({ temporada: "1", fecha: "2", [key]: "5" }, { rows });
+    assert.equal((html.match(/data-testid="competition-form"/g) ?? []).length, 1);assert.ok(html.includes('data-record="5"'));assert.ok(!html.includes('id="competition-review"'));
+  }
+  const unavailable = await renderPage({ temporada: "1", fecha: "2", gestionar: "5" }, { rows: { competencias: [draft], categorias_temporada: [] } });
+  assert.ok(unavailable.html.includes('data-read-only="true"'));
+});
+
+test("gestión sin importes, lectura y condiciones publicadas protegidas", () => {
+  for (const record of [null, draft, { ...draft, tarifa_clp: 7654321, publicada: true }]) {
+    const html = renderForm({ record, sports: approved });assert.ok(!/tarifa|7654321|CLP/.test(html));
+  }
+  const readonly = renderForm({ record: draft, readOnly: true });assert.ok(readonly.includes("Solo lectura"));assert.ok(readonly.includes('fieldset disabled=""'));assert.ok(!readonly.includes("Guardar competencia"));assert.ok(readonly.includes("Volver al listado"));
+});
+
+test("guardar omite valores financieros forjados y conserva el valor heredado", async () => {
+  const stored = { ...draft, tarifa_clp: 4321 };
+  const h = harness({ record: stored });const result = await h.save(5, { tarifa_clp: "999999" });
+  assert.ok(result.success);assert.equal(Object.hasOwn(h.calls.writes[0].p, "tarifa_clp"), false);assert.equal(stored.tarifa_clp, 4321);assert.equal(Object.hasOwn(result.values, "tarifa_clp"), false);
+  const created = harness();assert.ok((await created.save(null, { tarifa_clp: "0" })).success);assert.equal(Object.hasOwn(created.calls.writes[0].p, "tarifa_clp"), false);
+});
+
+test("dependencia heredada nula bloquea habilitación, sin ceros ficticios ni escrituras", async () => {
+  const h = harness({ sports: approved, record: draft });
+  const result = await h.save(5, { tarifa_clp: "0", publicada: "true", inscripciones_habilitadas: "true", inscripcion_abre_en: "2026-08-01T12:00", inscripcion_cierra_en: "2026-08-06T20:00" });
+  assert.ok(result.error.includes("actualización del esquema"));assert.equal(h.calls.writes.length, 0);
 });

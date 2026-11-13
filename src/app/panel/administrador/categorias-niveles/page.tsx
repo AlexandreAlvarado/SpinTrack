@@ -1,7 +1,6 @@
 import Link from "next/link";
 import Form from "next/form";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { AdminNavigation } from "@/components/admin-navigation";
 import { TaxonomyFeedback, TaxonomyForm, TaxonomyStatusButton } from "@/components/taxonomy-form";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -37,7 +36,7 @@ export default async function TaxonomyPage({ searchParams }: { searchParams: Pro
   const record = query.editar && validId(query.editar) ? allRecords.find(item => item.id === Number(query.editar)) ?? null : null;
   const editError = query.editar && !listError && !record ? "El identificador no es válido o el registro no existe." : "";
   return <DashboardShell role={profile.rol} nombre={profile.nombre}>
-    <AdminNavigation current={TAXONOMY_PATH}/>
+    
     <h2 className="text-2xl font-bold">Categorías y niveles</h2>
     <p className="mb-5 mt-2 text-sm text-slate-600">Catálogos individuales de la Liga. Esta sección no configura temporadas, inscripciones ni reglas de competencia.</p>
     <nav aria-label="Categorías y niveles" className="mb-6 flex flex-wrap gap-3">
@@ -54,7 +53,7 @@ export default async function TaxonomyPage({ searchParams }: { searchParams: Pro
         </Form>
         {listError ? <p role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">No se pudo consultar el catálogo. Comprueba la conexión y los permisos de la migración 003. <Link className="font-semibold underline" href={href()}>Reintentar</Link></p>
           : records.length === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-slate-600">{q || estado !== "todos" ? "No hay registros para estos filtros." : "Todavía no hay registros. Registra los conceptos reales utilizando el formulario."}</p>
-          : <><p className="mb-3 text-sm text-slate-500">{records.length} registros encontrados</p><div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="sr-only">{TAXONOMIES[table].title}</caption>
+          : <><p className="mb-3 text-sm text-slate-500">{records.length} registros encontrados</p><div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Tabla desplazable horizontalmente"><table className="w-full text-left text-sm"><caption className="sr-only">{TAXONOMIES[table].title}</caption>
             <thead><tr className="border-b text-slate-500"><th scope="col" className="p-3">Nombre / Código</th>{table === "categorias" && <th scope="col" className="p-3">Orden</th>}<th scope="col" className="p-3">Estado</th><th scope="col" className="p-3">Acciones</th></tr></thead>
             <tbody>{records.map(item => <tr key={item.id} className="border-b border-slate-100 align-top"><th scope="row" className="p-3 font-semibold">{item.nombre}<span className="block font-normal text-slate-500">{item.codigo} · #{item.id}</span></th>
               {table === "categorias" && <td className="p-3">{item.orden_presentacion ?? "Sin asignar"}</td>}

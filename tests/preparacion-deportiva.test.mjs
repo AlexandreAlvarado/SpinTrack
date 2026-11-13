@@ -18,6 +18,7 @@ function load(path, mocks = {}) {
 const catalogs = load("../src/lib/catalogos.ts");
 const competitions = load("../src/lib/competencias.ts", { "./catalogos": catalogs });
 const domain = load("../src/lib/preparacion-deportiva.ts", { "./competencias": competitions });
+const quickDomain = load("../src/lib/preparacion-rapida.ts", { "./preparacion-deportiva": domain });
 const c = { id: 5, temporada_id: 1, fecha_id: 2, categoria_temporada_id: 3, activo: true, publicada: false, inscripciones_habilitadas: false, tarifa_clp: null, inscripcion_abre_en: null, inscripcion_cierra_en: null };
 const date = { id: 2, temporada_id: 1, numero: 4, fecha: "2026-08-08", comuna: "Prueba", recinto: "Recinto compartido", estado: "borrador" };
 const category = { id: 3, temporada_id: 1, categoria_id: 1, nivel_id: 1, codigo: "juvenil_inicial", rama: "mixta", criterio_nacimiento: "rango_anios", reglamento_id: 4, activo: true, catalogos_activos: true };
@@ -160,6 +161,8 @@ function page(h) {
   return load("../src/app/panel/juez-general/preparacion/page.tsx", {
     "react/jsx-runtime": jsx, "next/link": link, "next/form": { default: ({ children, ...props }) => React.createElement("form", props, children) },
     "@/components/dashboard-shell": { DashboardShell: ({ children }) => children }, "@/components/judge-navigation": { JudgeNavigation: () => React.createElement("nav", null, "Dirección deportiva") },
+    "@/components/quick-preparation-table": { QuickPreparationTable: ({ rows }) => React.createElement("section", null, `Competencias individuales (${rows.length}) ${rows.map(r => `competencia #${r.competition.id} ${r.record?.estado_deportivo}`).join(" ")}`) },
+    "@/lib/preparacion-rapida": quickDomain,
     "@/components/preparation-form": { PreparationForm: () => React.createElement("section", null, "Formulario deportivo") },
     "@/lib/auth": { requireRole: h.requireRole }, "@/lib/supabase/server": { createClient: h.createClient }, "@/lib/catalogos": catalogs, "@/lib/competencias": competitions, "@/lib/preparacion-deportiva": domain,
   }).default;
@@ -184,7 +187,7 @@ test("página maneja consulta fallida y jornada sin competencias", async () => {
   assert.match(renderToStaticMarkup(await page(empty)({ searchParams: Promise.resolve({ temporada: "1", fecha: "2" }) })), /No hay competencias asociadas/);
 });
 test("formulario muestra cinco etapas sin reglas precargadas ni controles administrativos", () => {
-  const ui = load("../src/components/preparation-form.tsx", { "react/jsx-runtime": jsx, react: { useActionState: (_action, state) => [state, undefined, false] }, "next/link": link, "@/app/panel/juez-general/preparacion/actions": harness().actions, "@/lib/preparacion-deportiva": domain, "@/lib/competencias": competitions });
+  const ui = load("../src/components/preparation-form.tsx", { "react/jsx-runtime": jsx, react: { useActionState: (_action, state) => [state, undefined, false], useState: initial => [initial, () => {}] }, "next/link": link, "@/app/panel/juez-general/preparacion/actions": harness().actions, "@/lib/preparacion-deportiva": domain, "@/lib/competencias": competitions });
   const html = renderToStaticMarkup(React.createElement(ui.PreparationForm, { seasonId: 1, dateId: 2, day: date.fecha, competition: c, record: null, formats: [], blockers: ["Falta reglamento"], refreshHref: "/recargar" }));
   for (const label of Object.values(domain.STAGE_LABELS)) assert.ok(html.includes(label));
   for (const forbidden of ["tarifa_clp", "publicada", "estado_deportivo", "aprobado_por", "reglamento_id"]) assert.ok(!html.includes(`name="${forbidden}"`));
@@ -210,7 +213,7 @@ test("guard real requireRole utiliza el perfil verificado, no el rol de metadata
   }
 });
 test("navegación propia del Juez no concede accesos administrativos", () => {
-  const { JudgeNavigation } = load("../src/components/judge-navigation.tsx", { "react/jsx-runtime": jsx, "next/link": link, "@/lib/preparacion-deportiva": domain, "@/lib/habilitaciones": { HABILITATIONS_PATH: "/panel/juez-general/habilitaciones" } });
+  const { JudgeNavigation } = load("../src/components/judge-navigation.tsx", { "react/jsx-runtime": jsx, "next/navigation": { usePathname: () => domain.JUDGE_PATH }, "next/link": link, "@/lib/preparacion-deportiva": domain, "@/lib/habilitaciones": { HABILITATIONS_PATH: "/panel/juez-general/habilitaciones" } });
   const html = renderToStaticMarkup(React.createElement(JudgeNavigation, { current: domain.JUDGE_PATH }));
   assert.match(html, /aria-current="page"/); assert.match(html, /Preparación deportiva/);
   assert.doesNotMatch(html, /administrador|tarifa|cuentas/);

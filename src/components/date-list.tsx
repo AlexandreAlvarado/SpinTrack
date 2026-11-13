@@ -13,7 +13,7 @@ export type EventDate = {
 
 export function DateList({ fechas }: { fechas: EventDate[] }) {
   if (fechas.length === 0) {
-    return <div className="panel-card text-slate-600">Todavía no hay fechas publicadas. El calendario aparecerá aquí cuando el Administrador las publique.</div>;
+    return <div className="empty-state">Todavía no hay fechas publicadas. El calendario aparecerá aquí cuando el Administrador las publique.</div>;
   }
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

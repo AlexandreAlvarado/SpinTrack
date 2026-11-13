@@ -1,10 +1,11 @@
-"use server";
+﻿"use server";
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { supabaseConfigured } from "@/lib/config";
+import { authOrigin, authError, passwordValue, validPassword } from "@/lib/auth-flow";
 
 function field(formData: FormData, name: string, max = 150): string {
   const value = formData.get(name);
@@ -14,11 +15,14 @@ function field(formData: FormData, name: string, max = 150): string {
 export async function login(formData: FormData) {
   if (!supabaseConfigured()) redirect("/login?error=configuracion");
   const email = field(formData, "email", 320);
-  const password = field(formData, "password", 300);
+  const password = passwordValue(formData);
   if (!email || !password) redirect("/login?error=credenciales");
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) redirect("/login?error=credenciales");
+  let result;
+  try { result = await supabase.auth.signInWithPassword({ email, password }); } catch { redirect("/login?error=envio"); }
+  const { error } = result;
+  if (error) redirect(`/login?error=${authError(error)}`);
+  revalidatePath("/", "layout");
   redirect("/panel");
 }
 
@@ -26,21 +30,23 @@ export async function register(formData: FormData) {
   if (!supabaseConfigured()) redirect("/registro?error=configuracion");
   const nombre = field(formData, "nombre", 120);
   const email = field(formData, "email", 320);
-  const password = field(formData, "password", 300);
-  if (nombre.length < 3 || !email.includes("@") || password.length < 8) {
+  const password = passwordValue(formData);
+  if (nombre.length < 3 || !email.includes("@") || !validPassword(password) || password !== passwordValue(formData, "confirmation")) {
     redirect("/registro?error=datos");
   }
   const supabase = await createClient();
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-  const { data, error } = await supabase.auth.signUp({
+  const baseUrl = authOrigin();
+  let result;
+  try { result = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: { full_name: nombre },
       emailRedirectTo: `${baseUrl}/auth/callback`,
     },
-  });
-  if (error) redirect("/registro?error=registro");
+  }); } catch { redirect("/registro?error=envio"); }
+  const { data, error } = result;
+  if (error) redirect(`/registro?error=${authError(error) === "credenciales" ? "registro" : authError(error)}`);
   if (data.session) redirect("/panel");
   redirect("/login?info=confirmacion");
 }
@@ -48,7 +54,9 @@ export async function register(formData: FormData) {
 export async function logout() {
   if (!supabaseConfigured()) redirect("/");
   const supabase = await createClient();
-  await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut();
+  if (error) redirect("/login?error=cierre");
+  revalidatePath("/", "layout");
   redirect("/");
 }
 
@@ -89,3 +97,5 @@ export async function createEventDate(formData: FormData) {
   revalidatePath("/calendario");
   redirect("/panel/administrador?ok=fecha");
 }
+
+

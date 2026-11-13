@@ -3,7 +3,6 @@ import Form from "next/form";
 import { notFound } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { CatalogForm, CatalogStatusButton } from "@/components/catalog-form";
-import { AdminNavigation } from "@/components/admin-navigation";
 import { getCatalogOptions } from "@/lib/admin-options";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -70,7 +69,7 @@ export default async function CatalogPage({ params, searchParams }: {
   const relationName = (id: number | null | undefined, names: Map<number, string>) => id == null ? "Sin asignar" : names.get(id) ?? `#${id} (nombre no disponible)`;
 
   return <DashboardShell role={profile.rol} nombre={profile.nombre}>
-    <AdminNavigation current={base}/>
+    
     <h2 className="mb-5 text-2xl font-bold">Gestión de {CATALOGS[catalogo].title.toLowerCase()}</h2>
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <section className="panel-card min-w-0" aria-label="Listado de registros">
@@ -83,7 +82,7 @@ export default async function CatalogPage({ params, searchParams }: {
         {listError ? <div role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">No se pudo consultar el listado. Comprueba la conexión, la migración 002 y los permisos de Supabase. <Link className="font-semibold underline" href={href()}>Reintentar</Link></div>
           : records.length === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-slate-600">{q || estado !== "todos" ? "No hay resultados para estos filtros." : page > 1 ? "No hay registros en esta página." : "Todavía no hay registros. Utiliza el formulario para registrar el primero."}</p>
           : <><p className="mb-3 text-sm text-slate-500">{count} registros encontrados · Página {page}</p>
-            <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="sr-only">{CATALOGS[catalogo].title}</caption>
+            <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Tabla desplazable horizontalmente"><table className="w-full text-left text-sm"><caption className="sr-only">{CATALOGS[catalogo].title}</caption>
               <thead><tr className="border-b text-slate-500"><th scope="col" className="p-3">Registro</th><th scope="col" className="p-3">{catalogo === "localidades" ? "Ubicación" : "Relaciones"}</th><th scope="col" className="p-3">Estado</th><th scope="col" className="p-3">Acciones</th></tr></thead>
               <tbody>{records.map(item => <tr key={item.id} className="border-b border-slate-100 align-top">
                 <th scope="row" className="p-3 font-semibold"><span className="block">{item.nombre}</span><span className="font-normal text-slate-500">#{item.id}</span></th>

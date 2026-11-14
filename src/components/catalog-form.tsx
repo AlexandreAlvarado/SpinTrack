@@ -5,17 +5,16 @@ import { useActionState } from "react";
 import { saveCatalog, setCatalogActive } from "@/app/panel/administrador/catalogos/actions";
 import { CATALOGS, type Catalog, type CatalogOption, type CatalogRecord, type CatalogState } from "@/lib/catalogos";
 
-export function CatalogForm({ catalog, record, localidades, asociaciones, cancelHref }: {
+export function CatalogForm({ catalog, record, localidades, cancelHref }: {
   catalog: Catalog;
   record: CatalogRecord | null;
-  localidades: CatalogOption[];
-  asociaciones: CatalogOption[];
+  localidades?: CatalogOption[];
   cancelHref: string;
 }) {
   const [state, action, pending] = useActionState<CatalogState, FormData>(saveCatalog.bind(null, catalog, record?.id ?? null), {});
   const value = (name: keyof CatalogRecord) => state.values?.[name] ?? String(record?.[name] ?? (name === "activo" ? true : ""));
   const error = (name: string) => state.errors?.[name] ? <span id={`error-${name}`} className="mt-1 block text-sm text-amber-900">{state.errors[name]}</span> : null;
-  const relation = (name: "localidad_id" | "asociacion_id", label: string, options: CatalogOption[]) => (
+  const relation = (name: "localidad_id" | "asociacion_id", label: string, options: CatalogOption[] = []) => (
     <label className="form-label">{label} (opcional)
       <select className="input" name={name} defaultValue={value(name)} aria-invalid={!!state.errors?.[name]} aria-describedby={state.errors?.[name] ? `error-${name}` : undefined}>
         <option value="">Sin asignar</option>
@@ -23,6 +22,7 @@ export function CatalogForm({ catalog, record, localidades, asociaciones, cancel
       </select>{error(name)}
     </label>
   );
+  if (catalog === "clubes" && !Array.isArray(localidades)) return <section className="panel-card" aria-labelledby="catalog-form-title"><h2 id="catalog-form-title" className="text-xl font-bold">Registrar club</h2><p role="alert" className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">No se pudieron cargar las localidades. Reintenta antes de guardar.</p></section>;
   return <section className="panel-card" aria-labelledby="catalog-form-title">
     <h2 id="catalog-form-title" className="text-xl font-bold">{record ? `Editar ${CATALOGS[catalog].singular} #${record.id}` : `Registrar ${CATALOGS[catalog].singular}`}</h2>
     <p className="mt-2 text-sm text-slate-600">El nombre es obligatorio. Desactivar conserva el registro y sus relaciones.</p>
@@ -37,7 +37,6 @@ export function CatalogForm({ catalog, record, localidades, asociaciones, cancel
           <label className="form-label">Región (opcional)<input className="input" name="region" maxLength={150} defaultValue={value("region")} aria-invalid={!!state.errors?.region}/>{error("region")}</label>
           <label className="form-label">País (opcional)<input className="input" name="pais" maxLength={100} defaultValue={value("pais")} aria-invalid={!!state.errors?.pais}/>{error("pais")}</label>
         </> : relation("localidad_id", "Localidad", localidades)}
-        {catalog === "clubes" && relation("asociacion_id", "Asociación", asociaciones)}
         <label className="form-label">Estado
           <select className="input" name="activo" defaultValue={value("activo")} aria-invalid={!!state.errors?.activo}><option value="true">Activo</option><option value="false">Inactivo</option></select>{error("activo")}
         </label>

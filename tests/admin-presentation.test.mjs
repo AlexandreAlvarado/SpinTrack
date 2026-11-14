@@ -30,16 +30,16 @@ function load(path, mocks = {}) {
   mod._compile(ts.transpileModule(readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText, filename);
   return mod.exports;
 }
-const routes = [base, base + "/competencias", base + "/jugadores", base + "/catalogos/clubes", base + "/catalogos/asociaciones", base + "/catalogos/localidades", base + "/temporadas-deportivas", base + "/categorias-niveles"];
+const routes = [base, base + "/competencias", base + "/jugadores", base + "/catalogos/clubes", base + "/catalogos/localidades", base + "/temporadas-deportivas", base + "/categorias-niveles"];
 for (const current of routes) test("menú agrupado, rutas únicas y sección activa: " + current, () => {
   const { AdminNavigation } = load("components/admin-navigation.tsx", { "next/navigation": { usePathname: () => current } });
   const html = renderToStaticMarkup(React.createElement(AdminNavigation));
-  for (const label of ["Gestión de la Liga", "Organización", "Configuración", "Clubes y asociaciones", "Reglamentos y categorías", "Categorías y niveles"]) assert.ok(html.includes(label), label);
+  for (const label of ["Gestión de la Liga", "Organización", "Configuración", "Clubes", "Localidades", "Reglamentos y categorías", "Categorías y niveles"]) assert.ok(html.includes(label), label);
   const links = [...html.matchAll(/<a[^>]*href="([^"]+)"[^>]*>/g)];
   assert.deepEqual(links.map(item => item[1]).sort(), [...routes].sort());
   assert.equal(links.filter(item => item[0].includes('aria-current="page"')).length, 1);
   assert.ok(links.find(item => item[1] === current)[0].includes('aria-current="page"'));
-  if (current.includes("/catalogos/clubes") || current.includes("/catalogos/asociaciones") || current.includes("/temporadas-deportivas") || current.includes("/categorias-niveles")) assert.match(html, /<details open="">/);
+  if (current.includes("/temporadas-deportivas") || current.includes("/categorias-niveles")) assert.match(html, /<details open="">/);
 });
 
 test("shell: título del administrador, menú móvil y distinción con Juez General", () => {
@@ -60,11 +60,12 @@ const dates = [
   { id: 8, temporada_id: 4, numero: 1, fecha: "2026-11-07", comuna: "Comuna de prueba", recinto: "Recinto de prueba", estado: "publicada" },
   { id: 9, temporada_id: 4, numero: 2, fecha: "2026-11-14", comuna: "Otra comuna", recinto: "Otro recinto", estado: "borrador" },
 ];
-function harness({ rows = {}, failed = [], deny = false } = {}) {
+function harness({ rows = {}, failed = [], deny = false, captureCatalog = false } = {}) {
   const calls = { roles: [], forms: [] };
   const action = kind => async () => { calls.forms.push(kind); };
   const createSeason = action("season"), createEventDate = action("date");
   const mocks = {
+    "@/components/player-import": { PlayerImport: () => React.createElement("section", null, "Importador de prueba") },
     "@/lib/auth": { requireRole: async role => { calls.roles.push(role); if (deny) throw Error("denied"); return { rol: role, nombre: "Prueba" }; } },
     "@/lib/supabase/server": { createClient: async () => ({ from: table => {
       const result = { data: rows[table] ?? [], error: failed.includes(table) ? {} : null, count: (rows[table] ?? []).length };
@@ -76,7 +77,9 @@ function harness({ rows = {}, failed = [], deny = false } = {}) {
     "next/navigation": { notFound: () => { throw Error("notFound"); } },
   };
   for (const [module, names] of Object.entries({ "catalog-form": ["CatalogForm", "CatalogStatusButton"], "taxonomy-form": ["TaxonomyFeedback", "TaxonomyForm", "TaxonomyStatusButton"], "player-form": ["PlayerForm", "PlayerStatusButton"], "season-configuration-form": ["SeasonConfigurationForm"], "competition-form": ["CompetitionForm"], "journey-overview": ["JourneyOverview"] })) mocks["@/components/" + module] = Object.fromEntries(names.map(name => [name, () => null]));
-  return { calls, mocks, createSeason, createEventDate, page: load("app/panel/administrador/page.tsx", mocks).default };
+  const catalogProps = [];
+  if (captureCatalog) mocks["@/components/catalog-form"] = { CatalogForm: props => { catalogProps.push(props); return null; }, CatalogStatusButton: () => null };
+  return { calls, mocks, catalogProps, createSeason, createEventDate, page: load("app/panel/administrador/page.tsx", mocks).default };
 }
 function elements(node, type) {
   if (!node || typeof node !== "object") return [];
@@ -123,7 +126,7 @@ for (const [route, path, params] of [
   [base + "/jugadores", "jugadores/page.tsx", {}],
   [base + "/temporadas-deportivas", "temporadas-deportivas/page.tsx", {}],
   [base + "/categorias-niveles", "categorias-niveles/page.tsx", {}],
-  ...["clubes", "asociaciones", "localidades"].map(catalogo => [base + "/catalogos/" + catalogo, "catalogos/[catalogo]/page.tsx", { catalogo }]),
+  ...["clubes", "localidades"].map(catalogo => [base + "/catalogos/" + catalogo, "catalogos/[catalogo]/page.tsx", { catalogo }]),
 ]) test("ruta administrativa conserva guarda y presentación sin menú repetido: " + route, async () => {
   const h = harness();const Page = load("app/panel/administrador/" + path, h.mocks).default;
   const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}), params: Promise.resolve(params) }));
@@ -132,6 +135,18 @@ for (const [route, path, params] of [
   await assert.rejects(() => Guarded({ searchParams: Promise.resolve({}), params: Promise.resolve(params) }), /denied/);
 });
 
+
+test("catálogos: clubes y localidades reciben opciones de localidad", async () => {
+  const h = harness({ captureCatalog: true });
+  const Page = load("app/panel/administrador/catalogos/[catalogo]/page.tsx", h.mocks).default;
+  for (const catalogo of ["clubes", "localidades"]) {
+    renderToStaticMarkup(await Page({ params: Promise.resolve({ catalogo }), searchParams: Promise.resolve({}) }));
+    const props = h.catalogProps.at(-1);
+    assert.ok(props);
+    assert.ok(Array.isArray(props.localidades));
+    assert.equal(Object.hasOwn(props, "asociaciones"), false);
+  }
+});
 
 for (const scenario of ["season", "date", "invalid-season", "invalid-date", "denied", "write-error"]) test("operaciones originales de creación: " + scenario, async () => {
   const writes = [], invalidated = [];
@@ -154,5 +169,19 @@ for (const scenario of ["season", "date", "invalid-season", "invalid-date", "den
   else {
     assert.deepEqual(writes, [{ table: isDate ? "fechas" : "temporadas", values: isDate ? { ...values, temporada_id: 4, numero: 3 } : { ...values, anio: 2026 } }]);
     if (scenario !== "write-error") assert.ok(invalidated.includes(base));
+  }
+});
+
+test("jugadores: importación y registro a petición, filtros avanzados y tabla adaptable", async () => {
+  const h = harness({ rows: { jugadores: [{ id: 4, nombre_completo: "Persona real verificada", fecha_nacimiento: null, activo: true, perfil_id: null, club_id: null, localidad_procedencia_id: null }] } });
+  const Page = load("app/panel/administrador/jugadores/page.tsx", h.mocks).default;
+  const PlayerForm = h.mocks["@/components/player-form"].PlayerForm;
+  const Import = h.mocks["@/components/player-import"].PlayerImport;
+  for (const [query, manual, importing] of [[{},0,0],[{agregar:"si"},1,0],[{importar:"si"},0,1]]) {
+    const tree = await Page({ searchParams: Promise.resolve(query) });
+    assert.equal(elements(tree, PlayerForm).length, manual);assert.equal(elements(tree, Import).length, importing);
+    const html = renderToStaticMarkup(tree);
+    assert.match(html,/Importar Excel/);assert.match(html,/Agregar jugador/);assert.match(html,/table-fixed/);
+    assert.doesNotMatch(html,/overflow-x-auto/);assert.match(html,/<details[^>]*><summary[^>]*>Filtros avanzados/);
   }
 });

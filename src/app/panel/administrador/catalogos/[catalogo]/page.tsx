@@ -63,7 +63,7 @@ export default async function CatalogPage({ params, searchParams }: {
     listError = true;
     if (query.editar) editError = "No se pudo cargar el registro para editar. Comprueba la conexión.";
   }
-  const optionsError = localidades.error || asociaciones.error;
+  const optionsError = localidades.error;
   const localityNames = new Map(localidades.data.map(item => [item.id, item.nombre]));
   const associationNames = new Map(asociaciones.data.map(item => [item.id, item.nombre]));
   const relationName = (id: number | null | undefined, names: Map<number, string>) => id == null ? "Sin asignar" : names.get(id) ?? `#${id} (nombre no disponible)`;
@@ -97,8 +97,8 @@ export default async function CatalogPage({ params, searchParams }: {
         </nav>}
       </section>
       {editError ? <section className="panel-card"><p role="alert" className="text-amber-900">{editError}</p><Link className="btn-secondary mt-4" href={href()}>Volver al registro</Link></section>
-        : optionsError ? <section className="panel-card"><p role="alert" className="text-amber-900">No se pudieron cargar las localidades o asociaciones. El formulario no se habilita para evitar perder relaciones.</p><Link className="btn-secondary mt-4" href={href(query.editar ? { editar: query.editar } : {})}>Reintentar</Link></section>
-        : <CatalogForm key={`${catalogo}-${record?.id ?? "nuevo"}`} catalog={catalogo} record={record} localidades={localidades.data} asociaciones={asociaciones.data} cancelHref={href()}/>}
+        : optionsError ? <section className="panel-card"><p role="alert" className="text-amber-900">No se pudieron cargar las localidades. El formulario no se habilita para evitar perder relaciones.</p><Link className="btn-secondary mt-4" href={href(query.editar ? { editar: query.editar } : {})}>Reintentar</Link></section>
+        : <CatalogForm key={`${catalogo}-${record?.id ?? "nuevo"}`} catalog={catalogo} record={record} localidades={localidades.data} cancelHref={href()}/>}
     </div>
   </DashboardShell>;
 }

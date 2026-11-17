@@ -12,7 +12,7 @@ const text = (form: FormData, key: string) => typeof form.get(key) === "string" 
 const uncertain = "No se pudo comprobar el resultado. Recarga antes de reintentar.";
 
 export async function saveQuickPreparations(season: number, day: number, _previous: QuickState, form: FormData): Promise<QuickState> {
-  await requireRole("juez_general");
+  await requireRole("administrador");
   const ids = selectedIds(form);
   if (!ids || ![season, day].every(id => validId(String(id)))) return { error: "Selecciona entre 1 y 100 competencias válidas de la jornada." };
   const results: QuickResult[] = [];
@@ -64,7 +64,7 @@ export async function saveQuickPreparations(season: number, day: number, _previo
         const value = source ? String(source.mejor_de) : text(form, `${id}.sets.${stage}`) || text(form, `comun.${stage}`);
         if (!value) { steps.push({ label: STAGE_LABELS[stage], error: "Pendiente de configurar; el borrador se conservó." }); continue; }
         const stageForm = new FormData(); stageForm.set("mejor_de", value);
-        stageForm.set("referencia_resolucion", source?.referencia_resolucion ?? "");
+        stageForm.set("referencia_resolucion", source?.referencia_resolucion ?? (text(form, `${id}.sets.${stage}.referencia_resolucion`) || text(form, `comun.${stage}.referencia_resolucion`)));
         const result = await saveStageFormat(season, day, id, stage, null, {}, stageForm);
         steps.push({ label: STAGE_LABELS[stage], success: result.success, error: result.error });
       }
@@ -74,7 +74,7 @@ export async function saveQuickPreparations(season: number, day: number, _previo
 }
 
 export async function approveQuickPreparations(season: number, day: number, _previous: QuickState, form: FormData): Promise<QuickState> {
-  await requireRole("juez_general");
+  await requireRole("administrador");
   const ids = selectedIds(form);
   if (!ids || ![season, day].every(id => validId(String(id))) || form.get("confirmacion") !== "revisada") return { error: "Selecciona las competencias guardadas y confirma expresamente su revisión documental." };
   const results: QuickResult[] = [];

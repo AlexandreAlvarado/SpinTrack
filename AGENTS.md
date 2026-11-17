@@ -17,6 +17,11 @@ Soy el único desarrollador de una aplicación web progresiva (PWA) para gestion
 - Árbitro: registrar puntos, sets, incidencias y actas de sus partidos asignados.
 - Jugador: gestionar su perfil, inscripciones y consultar resultados.
 
+## Separación operativa definitiva
+- El Administrador prepara y valida temporada, jornada, competencia, grupos, reglas, formatos de sets y respaldos antes del inicio deportivo.
+- Una vez entregada la competencia, el Administrador queda en lectura para esa preparación; el Juez General dirige partidos, clasificaciones, llaves, árbitros y confirmaciones.
+- El Árbitro solo registra resultados de sus encuentros asignados y nunca confirma resultados ni configura reglas.
+
 ## Instrucciones
 1. Trabajar por módulos y priorizar un MVP funcional.
 2. Leer los archivos existentes antes de modificar el código.
@@ -67,3 +72,14 @@ Soy el único desarrollador de una aplicación web progresiva (PWA) para gestion
 - No crear tablas, formularios, categorías, partidos, inscripciones, rankings ni funcionalidades para Dobles.
 - Ignorar las reglas de Dobles presentes en las Bases Oficiales 2026.
 - El sistema administrará exclusivamente competencias individuales de tenis de mesa.
+
+## Cuenta única Jugador y Árbitro (023)
+- Conservar perfiles y jugadores.perfil_id opcional. Una habilitación de arbitraje por cuenta es independiente del rol principal y de la identidad deportiva.
+- Autorizar arbitraje mediante perfiles.arbitraje_habilitado vigente y asignación del encuentro, nunca exclusivamente por rol='arbitro'. Solo Administrador habilita/revoca; solo Juez General asigna y confirma oficialmente.
+- Navegar entre Jugador y Árbitro no cambia permisos ni cierra sesión. Comprobar autoarbitraje en PostgreSQL al asignar y actuar, incluyendo finales y participantes resueltos después del avance. Reasignación supervisada conserva historial.
+- No excluir una jornada por una inscripción en otra competencia. No fusionar cuentas ni modificar auth.users sin verificación de titularidad y procedimiento separado.
+- 022 figura preparada/pendiente en la documentación local; 023 también es para revisión y aplicación manual. No ejecutar migraciones en Supabase ni modificar las anteriores.
+- Arquitectura y procedimiento: [Cuenta única](documentacion/CUENTA_JUGADOR_ARBITRO.md).
+### Revisión final 023
+
+La migración 023 quedó revisada para eliminar el bloqueo global `2026023,1`; las operaciones usan filas de partido/cuadro y bloqueos por árbitro cuando corresponde. La suite Node completa quedó en 467/467 y el runner PostgreSQL temporal 001–023 pasó. 023 no se ejecutó en Supabase real.

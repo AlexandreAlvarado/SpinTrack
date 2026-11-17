@@ -13,14 +13,17 @@ export async function getCurrentIdentity() {
 
   const { data: profile, error: profileError } = await supabase
     .from("perfiles")
-    .select("id, nombre_completo, rol")
+    .select("id, nombre_completo, rol, arbitraje_habilitado")
     .eq("id", claims.sub)
     .single();
   if (profileError || !profile || !isRole(profile.rol)) return { authenticated: true, profile: null };
+  const nombre = typeof profile.nombre_completo === "string" ? profile.nombre_completo.trim() : "";
+  const emailName = typeof claims.email === "string" ? claims.email.split("@", 1)[0].trim() : "";
   return { authenticated: true, profile: {
     id: profile.id as string,
-    nombre: (profile.nombre_completo || "Usuario") as string,
+    nombre: nombre || emailName || "Usuario",
     rol: profile.rol as Role,
+    arbitrajeHabilitado: profile.arbitraje_habilitado === true,
     email: typeof claims.email === "string" ? claims.email : "",
   } };
 }
@@ -38,6 +41,6 @@ export async function requireProfile() {
 
 export async function requireRole(role: Role) {
   const profile = await requireProfile();
-  if (profile.rol !== role) redirect(ROLE_PATHS[profile.rol]);
+  if (role === "arbitro" ? !profile.arbitrajeHabilitado : profile.rol !== role) redirect(profile.rol === "arbitro" && !profile.arbitrajeHabilitado ? "/panel/jugador" : ROLE_PATHS[profile.rol]);
   return profile;
 }

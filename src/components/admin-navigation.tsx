@@ -8,12 +8,10 @@ const groups = [
     { label: "Temporadas y jornadas", href: base },
     { label: "Competencias", href: base + "/competencias" },
     { label: "Jugadores", href: base + "/jugadores" },
+    { label: "Arbitraje por cuenta", href: base + "/arbitraje" },
   ] },
   { label: "Organización", items: [
-    { label: "Clubes y asociaciones", children: [
-      { label: "Clubes", href: base + "/catalogos/clubes" },
-      { label: "Asociaciones", href: base + "/catalogos/asociaciones" },
-    ] },
+    { label: "Clubes", href: base + "/catalogos/clubes" },
     { label: "Localidades", href: base + "/catalogos/localidades" },
   ] },
   { label: "Configuración", items: [

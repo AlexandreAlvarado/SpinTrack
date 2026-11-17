@@ -56,16 +56,35 @@ function authHarness({ claims = { sub: "real", user_metadata: { rol: "administra
   const filters = [];
   const client = { auth: { getClaims: async () => ({ data: { claims }, error: claimError }) }, from(table) {
     assert.equal(table, "perfiles");
-    return { select(cols) { assert.equal(cols, "id, nombre_completo, rol"); return this; }, eq(k,v) { filters.push([k,v]); return this; }, single: async () => ({ data: profile, error: profileError }) };
+    return { select(cols) { assert.equal(cols, "id, nombre_completo, rol, arbitraje_habilitado"); return this; }, eq(k,v) { filters.push([k,v]); return this; }, single: async () => ({ data: profile, error: profileError }) };
   } };
   return { filters, auth: load("../src/lib/auth.ts", { "next/navigation": { redirect }, "@/lib/supabase/server": { createClient: async () => client }, "@/lib/roles": roles, "@/lib/config": { supabaseConfigured: () => true } }) };
 }
 test("rol proviene de perfiles, ignora metadatos manipulables", async () => {
   const h = authHarness(); assert.equal((await h.auth.getCurrentProfile()).rol, "jugador"); assert.deepEqual(h.filters, [["id", "real"]]);
 });
+
+test("Jugador habilitado abre arbitraje sin cambiar su rol ni sesión", async () => {
+  const h = authHarness({ profile: { id: "real", nombre_completo: "Titular", rol: "jugador", arbitraje_habilitado: true } });
+  assert.equal((await h.auth.requireRole("jugador")).rol, "jugador");
+  assert.equal((await h.auth.requireRole("arbitro")).rol, "jugador");
+  await assert.rejects(() => h.auth.requireRole("juez_general"), /redirect:\/panel\/jugador/);
+  await assert.rejects(() => h.auth.requireRole("administrador"), /redirect:\/panel\/jugador/);
+});
+
+for (const rol of ["jugador", "arbitro"]) test(`habilitación revocada bloquea URL arbitral: ${rol}`, async () => {
+  const h = authHarness({ profile: { id: "real", nombre_completo: "Titular", rol, arbitraje_habilitado: false } });
+  await assert.rejects(() => h.auth.requireRole("arbitro"), /redirect:\/panel\/jugador/);
+});
+
+test("metadatos no permiten habilitar arbitraje", async () => {
+  const h = authHarness({ claims: { sub: "real", user_metadata: { arbitraje_habilitado: true } } });
+  assert.equal((await h.auth.getCurrentProfile()).arbitrajeHabilitado, false);
+  await assert.rejects(() => h.auth.requireRole("arbitro"), /redirect:\/panel\/jugador/);
+});
 for (const opts of [{ claims: null }, { claimError: {} }, { profile: null }, { profileError: {} }, { profile: { rol: "inventado" } }]) test(`sesión/perfil inválido falla cerrado ${JSON.stringify(opts)}`, async () => assert.equal(await authHarness(opts).auth.getCurrentProfile(), null));
 for (const rol of roles.ROLES) test(`autorización servidor redirige al panel real de ${rol}`, async () => {
-  const { auth } = authHarness({ profile: { id: "real", nombre_completo: "Nombre", rol } });
+  const { auth } = authHarness({ profile: { id: "real", nombre_completo: "Nombre", rol, arbitraje_habilitado: rol === "arbitro" } });
   assert.equal((await auth.requireRole(rol)).rol, rol);
   const other = roles.ROLES.find(r => r !== rol);
   await assert.rejects(() => auth.requireRole(other), { message: `redirect:${roles.ROLE_PATHS[rol]}` });

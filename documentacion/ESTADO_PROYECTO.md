@@ -1,4 +1,4 @@
-# ESTADO DEL PROYECTO — PWA Liga Regional de Tenis de Mesa Los Ríos
+﻿# ESTADO DEL PROYECTO — PWA Liga Regional de Tenis de Mesa Los Ríos
 
 ## Objetivo
 
@@ -705,3 +705,320 @@ No ejecutar pruebas SQL destructivas en Supabase de producción.
   Clúster temporal detenido y eliminado. TypeScript, ESLint focalizado y 79/79 pruebas
   Node de competencias/inscripciones correctos. Se corrigieron durante la prueba
   una expresión CASE del guard y la identidad sintética entre conexiones del runner.
+
+
+## Resultados por set: revisión de la migración 013 (2026-11-14)
+
+La migración 012 permanece sin modificaciones. Según el estado informado por el desarrollador, está aplicada en Supabase; la migración 013 está preparada y aún no se ha aplicado.
+
+- El Juez General asigna un árbitro por partido confirmado. La asignación, reemplazos y correcciones quedan auditados.
+- El Árbitro solo ve sus partidos asignados, registra los puntos y envía una revisión. El Juez General confirma o devuelve con observación sin reescribir los sets.
+- Solo las revisiones confirmadas quedan disponibles para la futura clasificación. No se implementan todavía ranking, desempates, llaves ni programación automática de mesas.
+- Se corrigieron textos UTF-8 en los módulos de resultados y se añadió un detector automatizado de mojibake en [text-encoding.test.mjs](../tests/text-encoding.test.mjs).
+- TypeScript, ESLint focalizado, pruebas focalizadas de navegación y codificación, y las pruebas PostgreSQL temporales 012 y 013 están aprobados.
+- El runner temporal de Windows redirige la salida de pg_ctl.exe y aplica limpieza acotada al proceso de prueba; 012 y 013 finalizaron correctamente en clústeres y puerto aislados. No se ejecutó SQL remoto ni se detuvieron procesos PostgreSQL ajenos.
+
+
+## Corrección de lectura de Resultados por set (2026-11-15)
+
+Se corrigió la consulta del panel del Juez General: `partidos_arbitros` tiene `partido_id` como clave primaria y no posee `id`. El lector ahora recibe una columna de orden explícita y usa `partido_id` para las asignaciones. Los errores de Supabase siguen interrumpiendo la carga y se muestran como error de lectura; no se convierten en listas vacías. Se agregó una regresión para la clave real y el estado de error. No se modificaron migraciones ni datos remotos.
+
+
+## Panel del Árbitro: acceso de lectura acotado (2026-11-15)
+
+La consulta de `partidos_arbitros` ya vinculaba `arbitro_id` con el perfil autenticado y filtraba `activo = true`, pero las políticas 011 solo permitían leer `partidos` y `lotes_partidos_grupos` a Administrador y Juez General. PostgreSQL no devolvía error: RLS ocultaba las filas y el panel mostraba una lista vacía. Se preparó [014_acceso_lectura_arbitros.sql](../supabase/migrations/014_acceso_lectura_arbitros.sql), sin aplicarla remotamente, para permitir únicamente partidos, lotes y jugadores que estén vinculados a una asignación activa del Árbitro autenticado. No se agregan filtros por fecha; una jornada pasada sigue siendo visible mientras la asignación esté activa.
+
+El runner PostgreSQL temporal verificó seis partidos asignados, un Árbitro sin asignaciones y un usuario no autorizado. TypeScript, ESLint focalizado, regresiones del panel y detector UTF-8 quedaron aprobados. La migración 014 requiere revisión y aplicación manual antes de probar este acceso en Supabase.
+
+## Clasificación de grupos (2026-11-15)
+
+- Estado informado por el desarrollador: migraciones 001–014 aplicadas. Se conserva el historial anterior; esta sesión no consultó ni ejecutó SQL remoto ni modificó datos reales. Peneca Inicial y sus seis resultados se consideran pruebas y no deben aprobarse ni publicarse como oficiales.
+- Nuevo acceso Clasificación de grupos del Juez con selector contextual, tabla compacta con desplazamiento horizontal, PJ/PG/PP, sets y tantos a favor/en contra. PostgreSQL calcula desde resultados ordinarios oficialmente confirmados; capturas pendientes, observadas e incidencias no aportan indicadores. Una corrección pendiente conserva la confirmación anterior, bloquea aprobación y desactualiza la aprobación previa.
+- Lectura íntegra de Bases 2026 y contraste con Excel Grupos. §7 no define puntuación, criterio principal, desempates ni plazas de avance. §9 se refiere al ranking anual. Se muestra orden provisional por victorias expresamente pendiente de validación; sin posiciones definitivas ni desempates por sets/tantos. Para aprobar, el Juez debe documentar respaldo de la Liga al criterio, declarar datos reales y tener todos los cruces confirmados sin empate ni revisión pendiente. No se implementan llaves, avance ni ranking.
+- Preparada [015_clasificacion_grupos.sql](../supabase/migrations/015_clasificacion_grupos.sql), necesaria para conservar aprobaciones internas inmutables con snapshot, actor, fecha y referencia. RPC con autorización PostgreSQL, RLS de lectura operativa, sin DML directo del cliente ni permisos públicos; bloqueo de partidos, comparación del snapshot y protección frente a aprobación concurrente. Cualquier cambio de fuente desactualiza la aprobación sin borrar historial. Migraciones 001–014 intactas; 015 requiere revisión y aplicación manual.
+- Actualización al confirmar/capturar/observar y lectura periódica hasta 15 segundos/al recuperar foco; actualización manual disponible. Fallos de lectura muestran error, nunca una tabla parcial. Sin nueva dependencia de Realtime ni publicación de resultados de prueba.
+- Nombres visibles de árbitros y responsables mejorados con perfil autorizado e identificador corto; nombres genéricos marcados pendientes. Sin editar cuentas, roles ni seguridad. Rechazos deportivos esperados registrados como advertencias; errores técnicos conservan registro de error y alerta visible. No se deshabilita el indicador de desarrollo; queda pendiente reproducir visualmente el indicador original en una sesión autenticada.
+- Verificación: PostgreSQL 18 temporal 015 con dependencias y regresiones 013/014, indicadores de seis partidos, permisos, observaciones, incidencias, correcciones, empate, snapshots, historial y aprobaciones simultáneas aprobado. TypeScript correcto; 66/66 pruebas Node relacionadas aprobadas; ESLint focalizado correcto. ESLint global detectó errores preexistentes en scripts CJS y archivos de prueba temporales (más una advertencia en 009); no se alteran esos scripts para ocultarlos. Se actualizaron pruebas antiguas de resultados que tenían codificación dañada y expectativas anteriores al flujo Árbitro/Juez vigente.
+- Archivos principales: [página](../src/app/panel/juez-general/clasificacion/page.tsx), [acción](../src/app/panel/juez-general/clasificacion/actions.ts), [tabla](../src/components/group-standings.tsx), [tipos y nombres](../src/lib/clasificacion.ts), navegación del Juez, página/acción de resultados e historial de actas. Pruebas [Node](../tests/clasificacion-grupos.test.mjs) y [PostgreSQL](../supabase/tests/015_clasificacion_grupos.test.mjs); detalles y comprobación manual en [CLASIFICACION_GRUPOS.md](./CLASIFICACION_GRUPOS.md). Revisión autenticada y móvil físico pendientes; no equivalen a las comprobaciones locales.
+
+### Revisión focalizada previa a 015 (2026-11-15)
+
+- Se endureció `consultar_clasificacion_grupo`: sesión obligatoria y las dos funciones de rol deben devolver explícitamente `true`; valores `NULL` ya no pueden atravesar la condición de autorización. Se conserva `SECURITY DEFINER`, `search_path=''`, RLS y los permisos existentes.
+- Se confirmó la separación entre requisitos técnicos y autorización reglamentaria. La tabla y el orden por victorias siguen provisionales hasta contar con criterio deportivo validado; no se añadieron desempates ni cantidad de clasificados.
+- La declaración de datos reales continúa siendo explícita, atribuida al Juez y auditada con referencia. El sistema no puede comprobar la veracidad material; los datos ficticios de Peneca Inicial no deben aprobarse mediante el flujo normal.
+- La prueba PostgreSQL 015 ahora ejecuta una carrera entre una corrección y una aprobación con el mismo snapshot. Los bloqueos de grupo/partidos y la comparación transaccional impiden conservar una aprobación vigente sobre una corrección concurrente. También verifica defensas NULL y ausencia de escapes Markdown accidentales en el SQL.
+- Verificación focalizada de esta revisión: `node supabase/tests/015_clasificacion_grupos.test.mjs`, 015 aprobado; pruebas Node de clasificación y codificación, 6/6 aprobadas; `npm run typecheck`, aprobado; ESLint focalizado de 015 y sus archivos de clasificación, aprobado. No se ejecutó SQL remoto ni se modificó 001–014 o resultados existentes.
+
+
+## Flujo del Juez General: primer incremento de panel y navegacion (2026-11-15)
+
+- Estado informado por el desarrollador: migraciones 001 a 015 aplicadas. Esta anotacion conserva el historial anterior. Sin SQL remoto, modificaciones de migraciones, RLS, permisos ni datos reales.
+- Revision previa de AGENTS.md, historial y componentes existentes. Confirmaciones independientes conservadas: aprobacion deportiva y respaldo documental; habilitacion y excepciones; nomina y correcciones; grupos definitivos; respaldo del formato y confirmacion del lote; asignaciones y reemplazos; resultados oficiales y clasificacion con declaracion de datos reales. Guardar borradores no equivale a aprobar. No se inventan actas ni referencias.
+- [Panel principal](../src/app/panel/juez-general/page.tsx) presenta Preparar competencia, Gestionar partidos y Clasificacion y eliminatorias. Contadores persistidos de habilitaciones, participantes, grupos y partidos de lotes confirmados. Siguiente accion por competencia segun preparacion, habilitaciones, nomina, grupos y lote; despues dirige a revision de asignaciones/resultados, sin afirmar que ya fueron completados. Estados terminales/suspendidos dirigen a consulta.
+- [Navegacion](../src/components/judge-navigation.tsx): tres entradas principales; siete herramientas anteriores disponibles en un desplegable. Se conserva contexto explicito en enlaces. [Selector](../src/components/judge-context-selector.tsx) cambia contexto sin boton adicional y materializa valores predeterminados en URL; cambiar temporada/jornada limpia dependencias. Fecha de referencia en America/Santiago. Corregido orden por competencia_id del control deportivo. Error de consulta bloquea tarjetas y acciones derivadas.
+- Alcance incremental: no se implementan todavia operaciones multiples nuevas, sustitucion de formularios internos, nuevas precargas, revision unificada ni eliminatorias. Algunas pantallas heredadas, especialmente formularios de habilitaciones, aun pueden descartar contexto al enviar consultas; su adaptacion queda pendiente. La accion de resultados no discrimina aun pendientes, incidencias y clasificacion lista. Las propuestas existentes siguen disponibles en sus herramientas y requieren sus aprobaciones independientes.
+- Validacion: TypeScript y ESLint focalizado aprobados; 12/12 pruebas de navegacion, clasificacion y codificacion aprobadas. ESLint global ejecutado: 17 errores no-require-imports en scripts CJS existentes y una advertencia en prueba 009, sin cambios para ocultarlos. Sin comprobacion visual autenticada ni certificacion remota.
+- Archivos de este incremento: panel principal, navegacion, selector contextual, tests/judge-navigation.test.mjs y este historial. Se conservaron modificaciones previas del espacio de trabajo.
+
+## Flujo del Juez General: panel compacto e integración visual de preparación (2026-11-15)
+
+- El panel principal conserva las tres etapas y un único selector de temporada, jornada y competencia. Cuando existe una competencia seleccionada muestra una sola vista compacta con el estado de cada etapa y una única acción principal: completar preparación, generar/revisar cruces o revisar resultados.
+- Preparar competencia se presenta como el flujo guiado que reúne preparación deportiva, habilitaciones, nómina y grupos mediante las rutas y componentes existentes. Las etapas ya completas se resumen y no abren formularios ni enlaces repetidos en la vista inicial. Herramientas avanzadas quedan contraídas por defecto, sin numeración duplicada.
+- Se mantiene la consulta real de Supabase y el bloqueo ante errores de lectura. No se fusionan confirmaciones independientes ni se automatizan aprobaciones humanas. Clasificación permanece disponible en consulta; eliminatorias siguen pendientes.
+- Se corrigió el texto visible `Gestión de competencia`. El nombre del encabezado usa el nombre de perfil recortado; si falta, usa el identificador local del correo y finalmente `Usuario`.
+- Verificación de este incremento: TypeScript correcto, ESLint focalizado correcto y 7/7 pruebas de navegación, estados, errores de lectura y codificación aprobadas. No se modificaron migraciones, RLS, permisos ni datos reales.
+
+## Flujo del Juez General: segundo incremento, Gestionar partidos (2026-11-15)
+
+- Las rutas de partidos y resultados comparten una sola pantalla. La entrada «2. Gestionar partidos» conserva temporada, jornada y competencia. Resumen de seis contadores reales; partidos agrupados, con nombres y estado de la última revisión. Grupos con envíos pendientes aparecen primero y sus detalles se abren para revisión. Los demás detalles y herramientas avanzadas permanecen contraídos.
+- Sin grupos definitivos se explica el bloqueo. Con grupos confirmados, sin lote activo, se reutiliza GroupMatches y sus confirmaciones documentales. Un borrador mantiene la revisión y confirmación del lote; con lote confirmado se muestra directamente la gestión de encuentros, sin formulario de generación. Lotes descartados no se mezclan con el activo.
+- Árbitro actual visible; asignación explícita por encuentro, con perfiles jugadores excluidos del propio cruce. No se ofrecen reemplazos cuando existe historial de resultados. Se conserva assignReferee y la RPC asignar_arbitro_partido, que vuelve a comprobar rol, autoarbitraje y restricciones. **Limitación:** esta RPC es individual y no existe una operación múltiple atómica; se conserva el guardado individual, sin simular transacciones ni realizar guardados automáticos.
+- Revisión reutiliza ResultCard y las acciones PostgreSQL existentes: sets recibidos, confirmación explícita con referencia y devolución con observación, sin reingreso de puntos. Incidencias permiten devolución, nunca confirmación como resultado ordinario. Historial y responsables conservan identificadores completos y usan nombres de perfiles autorizados cuando están disponibles; no se atribuye una revisión histórica al árbitro actual.
+- «Lote de cruces confirmado» y «Resultados completos» son estados independientes. El panel principal consulta resultados, confirmaciones, observaciones y asignaciones para dirigir a asignación, revisión o clasificación. Una corrección pendiente no cuenta como confirmada aunque exista una revisión anterior oficial. Clasificación se ofrece cuando todos los resultados actuales están confirmados; no implica aprobarla ni publicarla.
+- Lecturas paginadas, incluidos perfiles; asignaciones inactivas no cuentan. Ante errores se bloquea la vista derivada, sin contadores cero ni disponibilidad ficticia. Guardados revalidan ambas rutas y el panel. Vista de tarjetas adaptable, controles flexibles y sin tablas que exijan desplazamiento horizontal.
+- Archivos: [pantalla compartida](../src/app/panel/juez-general/resultados/page.tsx), [entrada de partidos](../src/app/panel/juez-general/partidos/page.tsx), [panel](../src/app/panel/juez-general/page.tsx), [gestión](../src/components/match-management.tsx), [estados](../src/lib/gestion-partidos.ts), [asignación](../src/components/referee-assignment.tsx), [resultados](../src/components/match-results.tsx), [generación](../src/components/group-matches.tsx), [navegación](../src/components/judge-navigation.tsx), acciones existentes de [partidos](../src/app/panel/juez-general/partidos/actions.ts) y [resultados](../src/app/panel/juez-general/resultados/actions.ts). Pruebas nuevas de [gestión](../tests/gestion-partidos.test.mjs) y adaptación de las pruebas existentes de partidos, resultados y navegación.
+- Verificación: TypeScript y ESLint focalizado correctos; 76/76 pruebas Node relacionadas aprobadas (gestión, partidos, resultados, navegación, clasificación y UTF-8). Escenarios simulados: sin grupos, grupos confirmados sin partidos, sin árbitro, asignados con resultados pendientes, enviado, observado, todos confirmados y fallos de Supabase. Incluye corrección pendiente sobre resultado confirmado, asignación inactiva, autoarbitraje y rechazos de permisos/conflictos. Sin pruebas pesadas de PostgreSQL porque no cambió el backend.
+- No se ejecutó SQL ni se consultó Supabase real; no se modificaron migraciones 001–015, RLS, permisos, datos ni resultados existentes. Se conserva el historial y los cambios previos del espacio de trabajo. Pendiente comprobación visual autenticada y en dispositivo móvil; las pruebas locales no la sustituyen. Sin eliminatorias, ranking ni nuevas reglas deportivas.
+
+## Escala visual del Juez General: grupos y clasificación (2026-11-15)
+
+- Gestionar partidos conserva los contadores globales y añade tarjetas compactas por grupo con progreso confirmado/revisión. «Todos los grupos» queda en resumen; el detalle seleccionado es el único que monta asignaciones, observaciones e historial. Se mantiene búsqueda local por jugador, contexto único y orden de resultados enviados/observados antes de pendientes. No se agregan RPC ni consultas nuevas.
+- Clasificación de grupos conserva PJ, PG, PP, SF, SC, PF y PC, aprobación e historial. El resumen muestra todos los grupos y su estado (completo, pendiente, observado o empate pendiente); el selector abre una sola tabla detallada. No se calcula desempate ni se asignan plazas.
+- Fixtures locales deterministas en [escala-competencias.mjs](../tests/fixtures/escala-competencias.mjs): un grupo de cuatro (6 partidos), uno de tres (3), ocho grupos (32 jugadores, 48 partidos) y doce grupos (48 jugadores, 72 partidos). Las fixtures no se importan desde la aplicación ni se insertan en Supabase.
+- Verificación focalizada: TypeScript correcto, ESLint de los archivos modificados correcto y 81 pruebas relacionadas aprobadas, incluyendo contadores independientes por grupo, filtros, estados sin árbitro, enviados, observados, confirmados, empates, fallo de lectura y estabilidad de escalas 8/12. No se ejecutó SQL remoto ni se modificaron migraciones 001–015, RLS, permisos, datos o resultados existentes. Pendiente validación visual autenticada en móvil y PC.
+
+## Eliminatorias individuales: clasificación automática y propuesta de llave (2026-11-15)
+
+- Definición proporcionada para este alcance: clasifica exclusivamente el primer lugar de cada grupo; la cantidad total se obtiene contando los grupos de la competencia. La definición queda implementada y documentada como pendiente de validación formal porque las Bases revisadas describen grupos y eliminación simple, pero no explicitan las plazas por grupo.
+- `competitionInput` deriva automáticamente un clasificado por grupo desde `GroupStanding.filas[0]` solo si el grupo tiene todos sus partidos confirmados, no tiene revisiones pendientes ni empate, y conserva una aprobación vigente con referencia. Ordena por número de grupo, valida identidad única y no usa segundos/terceros lugares.
+- La página de Clasificación y eliminatorias genera la propuesta real en memoria al cargar la competencia. Muestra grupos, primeros lugares, posiciones, pases, rondas y requisitos bloqueantes. No ofrece selección manual de clasificados en el flujo principal. Un solo grupo queda sin partido y sin campeón automático. El laboratorio manual permanece contraído en Herramientas avanzadas y usa datos sintéticos.
+- El motor acepta origen de competencia solo para vista previa, mantiene confirmable=false y no escribe en Supabase. La selección técnica de ramas es determinista, no es ranking, sorteo ni siembra oficial. Ranking nacional/Liga, cabezas de serie, desempates, pases y reencuentros siguen pendientes de respaldo.
+- Verificación: TypeScript, ESLint focalizado y pruebas del motor para primer lugar por grupo, un grupo, grupos incompletos, empate, aprobación desactualizada, duplicados, 2–32 clasificados, pases y visualización. No se modificaron migraciones 001–015, resultados reales ni permisos. No se preparó 016 porque este incremento no persiste propuestas ni confirmaciones.
+
+## Persistencia y confirmación de eliminatorias (016 preparada, 2026-11-15)
+
+- Se preparó [016_eliminatorias.sql](../supabase/migrations/016_eliminatorias.sql), sin aplicarla remotamente. Crea llaves, rondas, enfrentamientos potenciales e historial separados de resultados. Los pases no se persisten como partidos; los nodos posteriores conservan fuentes pendientes sin ganador inventado.
+- `guardar_propuesta_eliminatoria_016` y `confirmar_llave_eliminatoria_016` son RPC con sesión y rol Juez General. Bloquean por competencia, revalidan grupos confirmados, snapshots de 015, aprobaciones vigentes, primer lugar único, pertenencia y duplicados. La segunda RPC exige referencia de reglas, datos reales y trazabilidad. RLS permite lectura solo a Juez/Administrador, sin DML directo; estructuras confirmadas e historial son inmutables.
+- La vista de Clasificación y eliminatorias guarda el borrador calculado automáticamente y no solicita seleccionar jugadores ni tamaño de cuadro. La confirmación oficial no se ofrece mientras la regla del primer lugar, distribución, pases, siembra y reencuentros no tengan respaldo formal de la Liga. No se implementa captura ni avance de resultados eliminatorios.
+- Se revisó `admin-presentation.test.mjs`: la expectativa era antigua porque el texto «Mi panel» pertenece a `JudgeNavigation`, no al shell aislado. Se actualizó únicamente el mock de navegación para representar el componente vigente.
+- Verificación: migración 016 en PostgreSQL temporal aprobada (borrador, snapshots, confirmación atómica, RLS, historial e inmutabilidad); TypeScript y ESLint focalizado aprobados; pruebas focalizadas de eliminatorias/clasificación aprobadas. No se ejecutó SQL remoto ni se modificaron 001–015 o datos existentes.
+
+## Eliminatorias individuales: motor de propuestas y visualización (2026-11-15)
+
+- Revisión directa completa de Bases 2026 y contraste con la hoja Grupos del Excel. §7 confirma simple eliminación y referencia a ranking nacional, ranking de Liga y criterio organizador/mesa; no prescribe algoritmo de siembra. Plazas, desempates de grupo, reparto de pases y ronda de reencuentro quedan pendientes. Evidencia y límites en [ELIMINATORIAS.md](./ELIMINATORIAS.md).
+- [Motor](../src/lib/eliminatorias.ts) puro de propuestas exclusivamente simuladas: cuadro mínimo 2/4/8/16/32, fuentes explícitas por grupo sin cuota uniforme, participantes autorizados de una competencia, rechazo de duplicados/datos incompletos/empates/aprobaciones inválidas. Separación técnica opcional por ramas, advertencia de primer reencuentro posible, sin garantizar óptimo ni presentarla como siembra oficial. Ranking/cabezas reservados como datos futuros, rechazados mientras no exista algoritmo validado.
+- [Visualización](../src/components/knockout-preview.tsx) después de clasificación y validaciones, dentro de la tercera etapa existente. Laboratorio contraído con datos sintéticos independientes de Peneca Inicial, selector de cantidades/rondas y decisiones locales. Pases propagan jugador; no generan rival, marcador ni partido disputado. No hay endpoints, confirmación oficial, persistencia ni resultados de eliminatorias. Cambiar contexto o salir descarta la propuesta. Confirmación bloqueada aun con clasificaciones aprobadas.
+- [Clasificación](../src/components/group-standings.tsx) y [gestión de partidos](../src/components/match-management.tsx) abren automáticamente el detalle cuando hay un solo grupo; con varios mantienen resumen/selector. Solo estado visual derivado, sin escritura al seleccionar.
+- Validación: TypeScript y ESLint focalizado aprobados; pruebas locales del motor para todas las cantidades 2–32 y regresiones de grupos/partidos/resultados/permisos/lecturas/UTF-8. Prueba visual en navegador con cuadro sintético de 24, rondas apiladas/columnas y desplazamiento contenido sin desbordar la página. No equivale a comprobación autenticada ni a dispositivo físico.
+- Archivos nuevos: motor, visualización, documento de reglas y tests/eliminatorias.test.mjs. Integración en la página existente de clasificación, componentes de grupos/partidos y sus pruebas. Sin SQL remoto, consultas a Supabase, cambios de datos reales ni modificaciones a migraciones 001–015. No se necesita 016 para una propuesta transitoria. Pendientes resolución deportiva, revisión de persistencia y posterior confirmación transaccional/auditoría; conservar Árbitro registra → Juez confirma.
+
+## Cierre de verificación de persistencia de eliminatorias (2026-11-16)
+
+- Se corrigieron los datos del caso de prueba de persistencia para usar participantes de competencia válidos; no se relajaron validaciones del motor.
+- Suite focalizada: 75/75 pruebas aprobadas. La suite Node completa posterior queda registrada con 452 pruebas, pendiente repetir el conteo final si se incorporan nuevas pruebas ajenas a este alcance.
+- PostgreSQL temporal para 016 verificó borrador, snapshots, revalidación, confirmación atómica, historial, RLS e inmutabilidad. No se aplicó la migración remotamente ni se modificaron 001-015 o datos reales.
+
+## Revisión correctiva de seguridad e integridad de 016 (2026-11-16)
+
+- Confirmado y corregido el conflicto entre reemplazo de borradores y la auditoría con `ON DELETE RESTRICT`: ahora las versiones anteriores quedan `reemplazada` y se conserva su historial.
+- Confirmado y corregido el riesgo de persistir pases como partidos: la validación SQL solo admite encuentros de dos fuentes y compara la estructura completa reconstruida; los pases se contabilizan únicamente como diferencia de posiciones y clasificados.
+- Confirmado y corregido el riesgo de aceptar JSON manipulado: se revalidan jugadores, grupos, duplicados, origenes, cruces, rondas, posiciones y distribución determinista en PostgreSQL.
+- Confirmado y corregido el hueco de grupos pendientes: una competencia solo puede generar una llave cuando el total de sus grupos coincide con el total confirmado.
+- Revisión de formato SQL: el archivo real no contiene `*--`, `new.llave_id` ni el operador accidental `!~`; las expresiones regulares usan la forma PostgreSQL `not ... ~ ...` donde corresponde.
+- La migración 016 permanece preparada para aplicación manual, pero no se ha ejecutado en Supabase real.
+
+## Integración PostgreSQL de cuadros con pases (2026-11-16)
+
+- La restricción de igualdad de nulidad en `eliminatorias_enfrentamientos` fue confirmada como incompatible con finales que combinan un jugador conocido y una fuente pendiente. Se reemplazó por una validación de identidad solo cuando ambos jugadores están presentes; los orígenes siguen siendo obligatorios y la RPC reconstruye la estructura completa.
+- El trigger de rondas/enfrentamientos ahora bloquea inserciones, actualizaciones, eliminaciones y movimientos entre llaves cuando la llave antigua o nueva está confirmada.
+- La prueba SQL temporal mediante las RPC reales guardó, reemplazó y confirmó cuadros de 3, 5, 6 y 12 clasificados, verificando `n-1` encuentros persistidos y pases sin filas de partido. También verificó grupos pendientes, JSON manipulado, historial y RLS.
+- El caso de un único grupo sigue generando cero rondas y no declara campeón. No se aplicó SQL remoto ni se tocaron migraciones 001-015.
+
+## Revisión final de canonización y concurrencia de 016 (2026-11-16)
+
+- `guardar_propuesta_eliminatoria_016` valida la entrada y luego reconstruye una propuesta canónica en PostgreSQL. Solo persiste clasificaciones reducidas a grupo, primer jugador y snapshot; rondas, encuentros y orígenes se regeneran con el algoritmo autorizado. Campos adicionales enviados por el cliente no llegan a llaves, historial ni enfrentamientos.
+- La prueba temporal ampliada usó la forma real de propuestas del motor TypeScript y confirmó cuadros de 2, 3, 5, 6 y 12 clasificados, reemplazo con historial conservado, confirmación e inmutabilidad, pases sin partidos ficticios y rechazo de JSON manipulado.
+- Se simuló una corrección concurrente de resultados cambiando el snapshot antes de confirmar: la RPC rechazó la llave y la mantuvo en borrador. Ninguna confirmación queda vigente sobre una clasificación desactualizada.
+- Validación ejecutada: PostgreSQL temporal de 016 aprobado; 75/75 pruebas focalizadas Node; TypeScript y ESLint focalizado aprobados. El archivo SQL real no contiene caracteres Markdown accidentales. No se ejecutó SQL remoto ni se modificaron 001-015.
+- Con estos escenarios cubiertos, 016 queda lista para aplicación manual, manteniendo pendientes reglamentarios fuera del alcance: siembra/ranking, desempates y distribución oficial deben ser validados por la Liga antes de confirmar una llave real.
+
+## Concurrencia real de la migración 016 (2026-11-16)
+
+- Se añadió coordinación en 016 con el mismo orden de fuente usado por la clasificación: competencia, grupos ordenados y partidos ordenados. La validación de la llave ocurre mientras esas filas permanecen bloqueadas.
+- Se añadió un trigger de protección sobre resultados de grupos: una corrección posterior a una llave confirmada es rechazada. Si la corrección obtiene primero el bloqueo del partido, la confirmación espera y revalida el snapshot actualizado; si la llave confirma primero, la corrección autorizada queda bloqueada por la llave confirmada.
+- La prueba temporal abrió dos conexiones PostgreSQL independientes. Una retuvo el partido durante una corrección y la otra intentó confirmar simultáneamente; la confirmación esperó, detectó el snapshot cambiado y dejó la llave en borrador. Se aplicó timeout de 10 segundos y limpieza garantizada del servidor temporal.
+- Con este escenario, la concurrencia real quedó demostrada como segura para 016. No se modificaron 001-015 ni se ejecutó SQL remoto.
+
+## Integración posterior a la aplicación manual de 016 (2026-11-16)
+
+- El desarrollador confirmó que 016 fue aplicada manualmente en Supabase de producción y comprobó la existencia de `eliminatorias_llaves`, `eliminatorias_rondas`, `eliminatorias_enfrentamientos`, `eliminatorias_historial` y de las RPC `guardar_propuesta_eliminatoria_016` y `confirmar_llave_eliminatoria_016`.
+- La integración Next.js usa esas RPC con los nombres definitivos y consulta las llaves mediante RLS. La lectura ahora ignora versiones `reemplazada` y selecciona la llave activa más reciente, evitando recuperar un borrador histórico antiguo.
+- Se mantiene la recuperación de estado de borrador/confirmada, el cuadro automático sin partidos ficticios para pases y el bloqueo de confirmación oficial por reglas deportivas pendientes. Un solo grupo continúa sin partido ni campeón automático.
+- Se revisaron mensajes de persistencia no disponible, clasificación desactualizada, permisos y estados vacíos. No se ejecutaron escrituras ni consultas remotas desde esta revisión.
+- La siguiente fase puede comenzar con el diseño de partidos eliminatorios, captura de resultados y avance de ganadores, manteniendo el flujo Árbitro registra → Juez General confirma y sin habilitar todavía la confirmación oficial de llaves sin validación formal de la Liga.
+
+## Corrección deportiva y escalabilidad de eliminatorias (017 preparada, 2026-11-16)
+
+- Regla vigente definida expresamente por el usuario: clasifican **primero y segundo de cada grupo**, automáticamente desde las clasificaciones completas, aprobadas y vigentes. Esta sección sustituye la regla histórica de un primero por grupo, conservada en las entradas anteriores como historial.
+- El [motor](../src/lib/eliminatorias.ts) exige dos identidades diferentes por grupo y unicidad global; bloquea resultados pendientes, empates y aprobaciones vencidas. Calcula 2 × grupos, menor potencia de dos y pases sin partidos ficticios. Sin máximos deportivos de grupos, participantes o rondas ni operaciones binarias de 32 bits. El caso de un solo grupo conserva dos clasificados y bloquea cuadro/guardado hasta validar el reencuentro, sin campeón automático.
+- Distribución técnica propuesta: primeros contra segundos de otros grupos en los encuentros iniciales; compañeros en mitades opuestas, también con pases. No se presume oficial A1-H2, ni se inventan sorteo, ranking, desempate o derechos a pases. Confirmación oficial bloqueada en interfaz y acción servidor mientras falte validación deportiva.
+- [017_dos_clasificados_por_grupo.sql](../supabase/migrations/017_dos_clasificados_por_grupo.sql) **aplicada en Supabase de producción**, junto con 001–016, según la aclaración vigente del desarrollador. Permanece intacta y no se reaplica ni modifica. Se reutilizan tablas, RLS, permisos, bloqueos, historial y protección de confirmadas; sus auxiliares exigen primero y segundo por grupo, revalidan pertenencia y snapshots y reconstruyen toda la llave.
+- No hay conversión silenciosa de borradores: el Juez regenera y guarda expresamente, manteniendo la versión anterior y su auditoría. Las llaves confirmadas no se modifican ni invalidan; se muestra su resumen histórico y no una estructura recalculada con el rótulo de confirmada.
+- [Interfaz](../src/components/knockout-preview.tsx) con total de grupos, dos plazas, total de clasificados, cuadro, pases, encuentros y advertencias. Rondas dinámicas; una ronda visible y páginas de 32 nodos para acotar el DOM. Laboratorio sin techo fijo de cantidades. [Lectura de clasificaciones](../src/app/panel/juez-general/clasificacion/page.tsx) en lotes de ocho peticiones simultáneas, sin limitar grupos.
+- Límites físicos documentados, sin convertirlos en reglas deportivas: INTEGER heredado, memoria/tiempos y transporte Server Actions de 3 MiB. Mensajes claros ante capacidad insuficiente; orígenes JSON compactos. Detalle del algoritmo, compatibilidad, pruebas y guía manual en [ELIMINATORIAS.md](./ELIMINATORIAS.md#corrección-vigente-dos-clasificados-por-grupo-017-2026-11-16).
+- Pruebas con [fixtures locales](../tests/fixtures/dos-clasificados.mjs), [motor/interfaz/acciones](../tests/eliminatorias.test.mjs) y [PostgreSQL temporal 017](../supabase/tests/017_dos_clasificados_por_grupo.test.mjs). Incluyen todas las escalas exigidas: 30→60→64, 31→62→64, 32→64→64, 33→66→128, 40→80→128, 50→100→128, 64→128→128 y 100→200→256; motor adicionalmente hasta 257 grupos y cuadro de 1024. No hay duplicados, pérdida de participantes, cruces iniciales entre compañeros ni pases persistidos como partidos.
+- SQL temporal cubre 016→017, canonización, persistencia, reemplazo/historial, snapshots, manipulación de JSON, ACL/RLS e inmutabilidad; conserva exactamente una llave confirmada con 016 y verifica corrección concurrente durante confirmación. La suite temporal de 015 también pasa con su cálculo real de clasificación. Sin conexiones, consultas ni escrituras remotas; fixtures nunca se usan como llaves oficiales.
+- No se implementan resultados eliminatorios ni avance de ganadores: quedan para **018**. Pendientes revisión manual de 017, validación deportiva de la distribución y comprobación visual autenticada.
+- Cierre de verificación: **438/438 pruebas Node aprobadas**, TypeScript y ESLint focalizado sin errores ni advertencias; PostgreSQL temporal 015 y 017 aprobados. SHA-256 confirma migraciones 001–016 intactas. Lint global conserva 17 errores y una advertencia ajenos a este cambio (scripts históricos 005, runner 009 y scripts previos de test-results); detalle en [ELIMINATORIAS.md](./ELIMINATORIAS.md#resultado-final-de-verificación-de-017).
+
+## Fase 018: circuito de eliminación directa (preparado localmente)
+
+- [Migración 018](../supabase/migrations/018_resultados_eliminatorias.sql) incremental sobre 017: respaldos documentales manuales, cuadros operativos, partidos referenciados a los originales, actas por sets y eventos con instantáneas. No modifica estructura histórica de 016 ni migraciones 001–017. **001–018 están aplicadas en producción según confirmación del desarrollador; esta sesión no ejecutó SQL remoto ni ingresó datos ficticios reales.**
+- Revisión correctiva de 018: la función `public.bloquear_fuente_eliminatoria_016(bigint)` sí existe en 016 y 017 no la elimina. 018 conserva su uso y añade una comprobación de dependencia al inicio. El orden de inicio queda `advisory lock (2026003,2) → competencia FOR UPDATE → bloquear_fuente_eliminatoria_016 (grupos y partidos) → llave FOR UPDATE`, consistente con 011/016 y sin carreras entre correcciones, confirmaciones e inicio.
+- El runner 018 ahora modela la tabla real `competencia_formatos_sets`: FK a `competencia_control_deportivo`, etapas `grupos/previa_cuartos/cuartos/semifinal/final`, PK compuesta, `mejor_de` restringido a 3/5, `referencia_resolucion`, `actualizado_por` y `actualizado_en`, además de RLS/ACL de lectura. No reemplaza los triggers completos de 003; esa cobertura queda indicada en la documentación de pruebas.
+- Eliminación definitiva en esta competencia al confirmar el Juez, avance automático por fuentes, finalista y campeón determinados en la misma transacción. Bloqueo por cuadro, reintentos idempotentes, resultados confirmados y campeón inmutables. Sin repechaje, doble eliminación, tercer lugar ni puntos de ranking anual. Pases propagados sin partidos ni victorias deportivas.
+- Árbitro asignado registra y envía sets reutilizando el validador 012 y el formulario existente; observaciones requieren nueva revisión. Juez asigna, observa y confirma. Se bloquean autoarbitraje, revisión del propio resultado, participantes pendientes y jugadores eliminados. Formatos por etapa tomados de la configuración existente y congelados al iniciar; no se inventan sets ni ganadores por incidencias.
+- [Interfaz operativa](../src/components/knockout-operations.tsx) integrada en Clasificación y Resultados del Árbitro, sin nuevos menús. Estados, ronda, pendientes, eliminados, historial y campeón; paginación de 16 encuentros en servidor, con RLS y roles verificados en [acciones](../src/app/panel/juez-general/clasificacion/operacion-actions.ts).
+- La interfaz separa clasificación actual, propuesta vigente, borradores históricos y llave confirmada. Un borrador anterior (por ejemplo, con un clasificado) muestra **Borrador histórico: requiere regeneración** y no se modifica automáticamente. Una llave confirmada y autorizada abre los partidos operativos, sus controles de árbitro/juez, historial, ganador, eliminado, avance y campeón. La distribución/pases/reencuentros continúan pendientes de validación formal; un único grupo permanece bloqueado y no se declara campeón desde posiciones de grupo. Guía completa y decisiones en [ELIMINATORIAS.md](./ELIMINATORIAS.md#fase-018-resultados-y-eliminación-directa-2026-11-16).
+- [Pruebas Node](../tests/eliminatorias-operacion.test.mjs) y [PostgreSQL temporal 018](../supabase/tests/018_resultados_eliminatorias.test.mjs) con fixtures exclusivamente locales. Cubren 4/6/8/16/32/64/128 clasificados, pases, observaciones/pendientes sin avance, semifinales/final, campeón, permisos, inmutabilidad, reintentos y concurrencia real. No sustituyen revisión manual del SQL ni comprobación visual autenticada/móvil, que siguen pendientes.
+- Cierre: **447/447 pruebas Node aprobadas**, TypeScript, diagnósticos del editor y ESLint focalizado correctos. PostgreSQL temporal 018 y regresión 015 aprobados; incluye paginación SQL y preservación exacta de histórica 016. Lint global sigue con los mismos **17 errores y una advertencia preexistentes**. SHA-256 confirma 001–017 intactas. Detalles y límites de las mediciones en [cierre de 018](./ELIMINATORIAS.md#cierre-de-verificación-de-018).
+
+## Verificación visual local del circuito eliminatorio (2026-11-16)
+
+- Se levantó Next.js en modo desarrollo sobre `http://localhost:3000` y se comprobó la navegación pública y la pantalla de ingreso en escritorio. No se conectaron escrituras ni se insertaron jugadores, grupos o resultados en Supabase.
+- El laboratorio local existente en [knockout-preview.tsx](../src/components/knockout-preview.tsx) conserva fixtures sintéticos para cuadros de 4, 6, 8, 16 y cantidades mayores; está contraído, identificado como simulado y no puede confirmar resultados ni declarar campeones.
+- No fue posible completar una prueba visual autenticada del Juez General o del Árbitro: el entorno local no dispone de credenciales de prueba ni de un backend PostgreSQL/Supabase aislado conectado a las páginas reales. Por ello no se declara aprobada la secuencia visual de asignación, envío, observación, confirmación, avance y campeón.
+- Para ejecutar esa verificación de forma segura se requiere una cuenta local de Juez General, una cuenta local de Árbitro, una base temporal con 018 aplicada y fixtures creados únicamente allí. La sesión debe comprobarse en escritorio y en un viewport móvil, y destruirse después sin apuntar a producción.
+- La evidencia automatizada permanece aprobada: TypeScript, ESLint completo, pruebas Node focalizadas y PostgreSQL temporal 018 con avance, campeón, concurrencia e idempotencia. Esta evidencia no sustituye la revisión visual autenticada.
+
+## Corrección del laboratorio y demostración local de eliminación directa (2026-11-16)
+
+- [BracketView](../src/components/knockout-preview.tsx) ya no muestra un selector vacío para dos clasificados: explica que el único grupo queda bloqueado por la regla pendiente de reencuentro. El laboratorio inicia con 4 clasificados y permite 6, 8, 16, 32 y cantidades mayores mediante fixtures sintéticos.
+- Se añadió [demostración local](../src/app/dev/eliminatorias/page.tsx), visible solo con `NODE_ENV !== production`, con estado en memoria y sin acciones Supabase. Está identificada como **SIMULACIÓN LOCAL · sin Supabase** y reutiliza el motor y la vista de cuadro existentes.
+- La demostración permite observar escenarios de 4, 6 y 16 clasificados, pases, rondas, asignación simulada, envío, observación, corrección, confirmación simulada, avance del ganador, eliminación del perdedor y campeón simulado. No es una prueba de autenticación ni E2E.
+- Verificación visual real: escritorio y viewport móvil simulado desde la interfaz local; se observaron los escenarios A, B y C y el avance de R1-C2 hacia el siguiente cruce. El flujo autenticado con Juez General/Árbitro y Supabase continúa pendiente por falta de cuentas y backend temporal conectado a esas rutas.
+- TypeScript aprobado; las 41 pruebas focalizadas siguen aprobadas. ESLint global conserva 17 errores históricos en scripts CommonJS; la nueva demostración no añade advertencias.
+
+## Fase 019: final independiente de grupo único (preparada para revisión manual, 2026-11-16)
+
+- Se preparó [019_final_grupo_unico.sql](../supabase/migrations/019_final_grupo_unico.sql) sobre 018. No se modifican 001–018 ni se convierten llaves históricas.
+- La propuesta 019 valida exactamente un grupo confirmado, primero y segundo vigentes, snapshots, pertenencia e identidad distinta; construye una sola ronda Final y un único enfrentamiento nuevo. El partido anterior de grupos no se reutiliza.
+- `guardar_propuesta_eliminatoria_019` reemplaza solo borradores mediante acción explícita y conserva el historial. `confirmar_llave_eliminatoria_019` exige referencias y declaraciones separadas de decisión deportiva y datos reales. `iniciar_eliminatoria_018` acepta version 19 además de 17 y mantiene el respaldo operativo de 018.
+- La interfaz de clasificación muestra directamente la final para un solo grupo, permite guardar y confirmar la propuesta con referencias, y conserva borradores antiguos dentro de «Historial de llaves». Se retiró el laboratorio y el texto técnico de la vista normal; las pruebas y fixtures locales permanecen.
+- Pendiente: aplicar 019 manualmente, ejecutar un runner PostgreSQL temporal específico de 019, verificar el esquema real de producción mediante lectura autorizada y completar una final autenticada con Juez General y Árbitro. La regresión temporal de 018 permanece aprobada; no se ejecutó SQL remoto ni se alteró Peneca Inicial.
+
+### Corrección final de 019
+
+- La regla de un solo grupo queda implementada como final nueva entre primero y segundo; ya no se bloquea automáticamente ese caso. La confirmación exige que el Juez General proporcione también la referencia auténtica de la regla de final/reencuentro; 019 no genera ese texto por defecto.
+- El runner temporal [018_resultados_eliminatorias.test.mjs](../supabase/tests/018_resultados_eliminatorias.test.mjs) aplica 016, 017, 018 y 019 en PostgreSQL local y aprobó propuesta, llave canónica, confirmación con referencias, inicio operativo, asignación, observación, corrección, confirmaciones concurrentes, campeón, subcampeón e idempotencia. No ejecuta SQL remoto.
+- 019 queda lista para revisión y aplicación manual. Antes de aplicarla se requiere una ventana controlada, respaldo del esquema y verificación de que las referencias entregadas por el Juez General corresponden a una decisión deportiva real. La final autenticada en producción sigue pendiente hasta aplicar 019 y contar con Juez General y Árbitro autorizados.
+
+
+### Corrección final 019: historial y UTF-8
+
+- Corregido el reemplazo de borradores: todas las inserciones en `eliminatorias_historial` usan `determinista_por_grupo`, que es el valor permitido por 016. `version_regla=19` y `metodo_distribucion=final_grupo_unico` permanecen en la propuesta JSON.
+- `validar_eliminatoria_019` exige dos jugadores distintos, ambos pertenecientes al mismo grupo confirmado, posiciones 1/2 aprobadas, snapshots vigentes, sin empates ni pendientes incompatibles.
+- El runner PostgreSQL temporal ahora crea un borrador 016 real con un solo clasificado y cuatro participantes antes de aplicar 017/018/019; después lo reemplaza por la final 019, conserva su historial y completa la final hasta campeón y subcampeón. La prueba pasó sin SQL remoto.
+- Se corrigieron cadenas UTF-8 visibles en interfaz, migración y documentación. La prueba de codificación pasó y verifica textos como campeón, subcampeón, clasificación, según e histórico.
+
+### Regresión final posterior a 019
+
+- En el mismo PostgreSQL temporal, después de 016, 017, 018 y 019, se verificó una competencia de 2 grupos/4 clasificados con llave versión 17, semifinales, final y campeón.
+- Se verificó una competencia de 3 grupos/6 clasificados con 2 pases automáticos: se persistieron 5 partidos reales para el cuadro de 8 posiciones y no se generaron partidos ficticios por los pases.
+- `iniciar_eliminatoria_018` continúa aceptando llaves versión 17 y versión 19. La regresión pasó sin conexiones remotas ni cambios en 001–018.
+
+### Integración posterior a la aplicación productiva de 019
+
+- El estado operativo documentado ahora refleja que 019 fue aplicada manualmente en Supabase junto con 001–018, según confirmación del desarrollador.
+- `operacion-actions.ts` utiliza las firmas instaladas de `iniciar_eliminatoria_018(bigint,text)` y `operar_eliminatoria_018(bigint,text,integer,text,uuid,jsonb)`; las acciones de propuesta/confirmación usan las firmas 019 con referencias explícitas.
+- El panel operativo carga `id,nombre_completo` para mostrar correctamente a los finalistas en Juez y Árbitro. El formato de sets de la final sigue siendo leído por la RPC de inicio desde `competencia_formatos_sets`; no se inventan referencias desde la interfaz.
+- El flujo de operación queda disponible desde los paneles: Juez inicia/asigna/observa/confirma; Árbitro consulta asignaciones, registra sets y corrige solo después de observación. Los resultados confirmados permanecen protegidos.
+- Verificación local: 36 pruebas Node relacionadas, TypeScript y ESLint focalizado aprobados. La regresión PostgreSQL temporal 016–019 cubre final única, reemplazo histórico, competencias multigrupo, pases, campeón e idempotencia. No se ejecutaron escrituras remotas.
+
+### Corrección funcional de controles de final (2026-11-16)
+
+- La causa del bloqueo visual era doble: la página seleccionaba cualquier borrador versión 17/19 sin distinguir la regla válida para un único grupo, y `KnockoutPreview` usaba `persisted` como `proposalKey` aunque `persisted` fuera solo el borrador histórico 016. Por eso se mostraba “Final guardada como propuesta” y se ocultaba “Guardar final”.
+- Ahora, con un grupo, solo una llave versión 19 es propuesta activa; un borrador 016 histórico queda únicamente en “Historial de llaves”. Si no existe llave 019 persistida aparece “Guardar final”. Si existe borrador 019 aparece “Activar final”. Si existe llave 019 confirmada aparece el control operativo “Iniciar cuadro respaldado”.
+- Después de guardar o confirmar se fuerza la actualización de la página; iniciar y operar refrescan el cuadro operativo. Se añadió una prueba de regresión de estos estados en `tests/eliminatorias.test.mjs`.
+
+### Automatización de referencias operativas
+
+- Las referencias técnicas de guardado de propuesta, inicio de llave, asignación de Árbitro y comienzo de partido se generan automáticamente en las acciones del servidor cuando no son proporcionadas.
+- La confirmación deportiva conserva manuales únicamente las referencias reglamentarias auténticas y la referencia de la regla de final/reencuentro, además de las declaraciones explícitas de revisión de reglas y datos reales.
+- La selección del Árbitro, el registro de sets, la observación y la confirmación del resultado siguen siendo decisiones humanas y no se automatizan.
+
+### Simplificación de asignación de la final
+
+- La vista de una final autorizada muestra únicamente los finalistas, el estado y el selector de Árbitros elegibles. Se ocultaron las explicaciones repetidas, referencias internas y casillas técnicas de la operación cotidiana; el historial continúa disponible de forma secundaria.
+- El selector excluye los perfiles vinculados a los jugadores del encuentro y los Árbitros con otra asignación eliminatoria todavía operativa. No se afirma disponibilidad horaria porque el esquema no registra horarios de mesas.
+- Se preparó [020_preparar_asignar_final.sql](../supabase/migrations/020_preparar_asignar_final.sql), y su instalación productiva fue confirmada por el desarrollador. Su RPC inicia la final y asigna el Árbitro en una única transacción, con los bloqueos y validaciones de 018/019.
+- Sin autorización o sin Árbitros elegibles se muestra un único mensaje breve y no se ofrece la operación. La selección de sets, observación y confirmación del resultado continúa bajo decisión humana.
+
+### Auditoría correctiva de 020
+
+- La RPC `preparar_asignar_final_eliminatoria_020(bigint,uuid,text)` quedó restringida a llaves versión 19, confirmadas y respaldadas, con una sola competencia/grupo, una sola final y dos participantes definidos. Las llaves versión 17 y los cuadros multigrupo se rechazan antes de iniciar operaciones.
+- Se unificó el orden de bloqueos con 018: después de la inicialización se bloquea el cuadro y luego el partido; nunca se bloquea el partido antes del cuadro cuando se llama a `operar_eliminatoria_018`. Se añadió bloqueo transaccional por Árbitro para evitar asignaciones incompatibles concurrentes.
+- [operacion-actions.ts](../src/app/panel/juez-general/clasificacion/operacion-actions.ts), [knockout-operations.tsx](../src/components/knockout-operations.tsx), [020_preparar_asignar_final.sql](../supabase/migrations/020_preparar_asignar_final.sql) y las pruebas usan exactamente la RPC `preparar_asignar_final_eliminatoria_020(bigint,uuid,text)`.
+- La migración 020 figura aplicada en producción según confirmación del desarrollador. No se ejecutó SQL remoto durante esta revisión ni se modificaron 001–019.
+
+### Cierre de auditoría PostgreSQL 020
+
+- La RPC devuelve idempotencia cuando se repite la misma asignación, rechaza sustituciones y conserva el árbitro/evento original. Un trigger adicional protege también la ruta genérica de `operar_eliminatoria_018` frente a sobrescrituras, autoarbitraje y asignaciones incompatibles concurrentes.
+- El runner temporal permite limitar escalas mediante `SPINTRACK_PG018_COUNTS`, informa errores de `psql`, detecta timeouts y limpia el clúster. Ejecutado con `SPINTRACK_PG018_COUNTS=1`, aplicó 016–020 y aprobó el flujo 019, reintentos, concurrencia, rechazo de versión 17 y protección de asignación.
+- Resultado: **38 pruebas Node aprobadas; PostgreSQL temporal 016–020 aprobado** para los escenarios ejecutados. No se ejecutó SQL remoto durante la auditoría.
+
+### Corrección del selector de Árbitro
+
+- El perfil se consultaba correctamente con `rol='arbitro'` y la política 013 permite esa lectura al Juez General. El defecto visual estaba en [knockout-operations.tsx](../src/components/knockout-operations.tsx): el selector solo se renderizaba para `operation='asignar'`, pero la final utilizaba `operation='preparar_asignar'`. Por eso aparecía el botón sin selector y la acción recibía `arbitro_id` vacío.
+- La final todavía no iniciada tampoco debe mostrar «No hay encuentros operativos»: ese mensaje ahora solo aparece cuando el cuadro ya está operativo y la consulta realmente no devuelve partidos. La migración 020 sigue pendiente de aplicación manual; sin ella la asignación directa responde con un aviso específico.
+- Se añadió una prueba de regresión que comprueba el selector de la operación combinada y conserva la cobertura de rol, RPC y errores de lectura. No se crean usuarios ni se modifican roles reales.
+
+### Diagnóstico de asignación 020
+
+- La Server Action ya conserva `code`/SQLSTATE y el mensaje devuelto por Supabase en el log seguro del servidor, sin tokens ni credenciales. La interfaz distingue RPC ausente, permisos, autorización/formato, autoarbitraje y asignación incompatible.
+- Las pruebas locales cubren `PGRST202` y `55000` con mensajes comprensibles. No se realizó una consulta remota de solo lectura en esta sesión porque no hay una conexión autorizada disponible; el SQLSTATE exacto de Peneca Inicial debe obtenerse del log del servidor al repetir la operación.
+
+### Regla automática de finales al mejor de 5 (021 preparada)
+
+- El trigger heredado de 011 bloquea modificar `competencia_formatos_sets` después de partidos confirmados. Por eso un `referencia_resolucion` NULL no se rellena directamente en esa fila histórica.
+- [021_formato_final_mejor_de_5.sql](../supabase/migrations/021_formato_final_mejor_de_5.sql) añade un respaldo trazable por competencia y una RPC de Juez General (`configurar_formato_final_021`) que exige una referencia auténtica, fija la regla en mejor de 5 y no modifica semifinales, cuartos ni grupos.
+- `iniciar_eliminatoria_018` se reemplaza incrementalmente para usar ese respaldo cuando la fila heredada de la etapa final tiene referencia NULL; los partidos de final se crean siempre con `mejor_de=5`.
+- La pantalla de preparación ya no permite elegir 3 sets para la final: muestra la regla fija y solicita una única referencia deportiva. No se genera ni se presenta como oficial ninguna referencia automáticamente.
+- El runner PostgreSQL temporal aplicó 016–021 y comprobó configuración de referencia, inicio/asignación, observación, confirmación, campeón, idempotencia y regresión multigrupo: aprobado con `SPINTRACK_PG018_COUNTS=1`. 021 no se ha ejecutado remotamente y queda para aplicación manual.
+- La prueba adicional confirmó que, si no existe la fila `final`, el INSERT incluye explícitamente `actualizado_por`; esto respeta la columna `NOT NULL` del esquema real y los triggers de auditoría. También se rechazó reutilizar una referencia antigua de mejor de 3: iniciar exige el respaldo nuevo al mejor de 5 y no convierte silenciosamente el formato.
+
+### Corrección final de clasificación y asignación
+
+- Las claves React de la página de clasificación ahora usan prefijos estables (`knockout-operations-*` y `knockout-preview-*`), evitando colisiones cuando el ID de competencia coincide con el ID de llave.
+- Una llave confirmada ya no muestra dos tarjetas de la misma final: la operación queda a cargo de `KnockoutOperations` y la vista previa se reserva para propuestas todavía no confirmadas.
+- La carga operativa comprueba la fila de formato final y el respaldo complementario 021 antes de mostrar la asignación directa. Si falta el respaldo, se mantiene el acceso breve a Preparar competencia y el error distingue formato/respaldo de un árbitro inválido.
+- Se verificaron 40 pruebas Node relacionadas, TypeScript y ESLint focalizado. No se realizaron escrituras remotas.
+
+### Separación definitiva de roles
+
+- Se preparó [022_separar_preparacion_administrador.sql](../supabase/migrations/022_separar_preparacion_administrador.sql) para que la configuración de formatos, final al mejor de 5 y referencias quede reservada al Administrador antes del inicio. El Juez General consulta la preparación entregada y ejecuta la operación deportiva.
+- La pantalla de preparación se reutiliza para el Administrador desde el panel administrativo; el Juez General puede consultar el estado en lectura. Las acciones de preparación y aprobación exigen rol Administrador en Next.js y PostgreSQL refuerza la separación mediante trigger/RLS.
+- 022 no se ha aplicado remotamente. El estado de aplicación de 021/022 en Supabase no pudo verificarse en esta sesión por falta de una conexión autorizada de solo lectura; la migración queda preparada para revisión manual en orden 021 y luego 022.
+### Auditoría de seguridad de 022
+
+- [022_separar_preparacion_administrador.sql](../supabase/migrations/022_separar_preparacion_administrador.sql) exige explícitamente que existan la tabla y la RPC de 021 antes de continuar. La aplicación se detiene dentro de la transacción si 021 no está instalada.
+- `configurar_formato_final_021` bloquea la competencia y el control deportivo antes de escribir. Solo permite Administrador autenticado con `configuracion_aprobada=false` y `estado_deportivo='pendiente'`; rechaza competencias entregadas, en curso, suspendidas, finalizadas o canceladas.
+- Se conservan `aa_proteger_preparacion_011` y `b_validar` de 003. El nuevo trigger mantiene el advisory lock de preparación y también protege `DELETE`, por lo que una política RLS permisiva no puede eludir el cierre.
+- Las políticas 022 permiten al Juez General consultar la preparación, pero los triggers y la RPC impiden sus INSERT/UPDATE/DELETE. El Administrador puede preparar, aprobar y entregar; después de la entrega tampoco puede cambiar formatos o referencias. Árbitros y jugadores no pueden modificar la configuración.
+- Runner temporal de contrato [022_separar_preparacion_administrador.test.mjs](../supabase/tests/022_separar_preparacion_administrador.test.mjs): aprobó dependencia 021, configuración administrativa, lectura del Juez, rechazo de modificaciones por Juez, bloqueo posterior a la entrega, `DELETE` protegido e inmutabilidad. La regresión deportiva 016–021 se mantiene en su runner específico; ninguno ejecuta SQL remoto.
+- La migración 022 sigue pendiente de aplicación manual. La regresión 016–021 continúa siendo la cobertura del circuito deportivo; esta prueba adicional cubre la separación de preparación y sus permisos.
+
+## Cuenta única Jugador y Árbitro — 023
+
+Se conserva el rol principal y la identidad deportiva. La nueva habilitación de arbitraje por cuenta permite ambos paneles con una sesión; los perfiles Árbitro anteriores conservan inicialmente sus permisos. Administrador habilita/revoca con auditoría y control de concurrencia; RLS, RPC y Server Actions comprueban la habilitación vigente. Se protege el autoarbitraje por encuentro y la reasignación autorizada sin perder actas.
+
+[Arquitectura, compatibilidad, procedimiento de cuentas duplicadas y pruebas](CUENTA_JUGADOR_ARBITRO.md). [Migración 023](../supabase/migrations/023_habilitacion_arbitraje_cuenta.sql) pendiente de revisión/aplicación manual tras 022, cuyo estado local sigue siendo pendiente. No se consultó ni modificó Supabase real. No se editaron migraciones 001–022.
+
+Verificación 023 (2026-11-17): PostgreSQL temporal aprobado, incluidos avance real a final preasignada, reasignación y conservación de asignaciones anteriores; 165 pruebas Node relacionadas aprobadas, TypeScript/diagnósticos y ESLint focalizado correctos. Suite Node completa: 462/467; permanecen cinco fallos de fixtures de preparación rápida relativos a final de tres sets/referencia obligatoria. ESLint global: 17 errores y dos advertencias en scripts históricos. [Detalle y matriz de los 14 casos](CUENTA_JUGADOR_ARBITRO.md). Comprobación visual autenticada pendiente de instalación local con 023; no hubo SQL remoto.
+### Cierre de revisión 023
+
+Se retiró la serialización global `pg_advisory_xact_lock(2026023,1)` de las operaciones de arbitraje y resultados. Se conservaron bloqueos de partido/cuadro, filas de perfil y el bloqueo por árbitro para asignaciones incompatibles. La suite Node completa pasa 467/467; la validación PostgreSQL temporal 001–023 también pasa. La migración 023 queda lista para aplicación manual.
+
+### Flujo de final tras clasificación aprobada
+
+La vista operativa ya no devuelve al Juez General a Preparación cuando una llave confirmada carece de un dato visible en la interfaz. Reutiliza el respaldo de la llave y muestra directamente la asignación de árbitro. Si falta de verdad el respaldo documental o el formato final al mejor de cinco de 021, informa ese requisito como excepción administrativa concreta.

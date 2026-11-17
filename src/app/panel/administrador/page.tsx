@@ -37,6 +37,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     <div className="my-6 flex flex-wrap items-center justify-between gap-3">
       <h2 className="text-xl font-bold">Temporadas y jornadas</h2>
       <div className="flex flex-wrap gap-3">
+        <Link href="/panel/juez-general/preparacion" className="btn-secondary">Preparación deportiva</Link>
         <Link href={home + "?crear=jornada#nuevo-registro"} className="btn-primary">+ Nueva jornada</Link>
         <Link href={home + "?crear=temporada#nuevo-registro"} className="btn-secondary">Nueva temporada</Link>
       </div>

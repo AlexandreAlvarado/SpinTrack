@@ -5,7 +5,7 @@ import { JudgeNavigation } from "@/components/judge-navigation";
 import { PreparationForm } from "@/components/preparation-form";
 import { QuickPreparationTable } from "@/components/quick-preparation-table";
 import { officialStart, type PreparationTemplate } from "@/lib/preparacion-rapida";
-import { requireRole } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { validId } from "@/lib/catalogos";
 import { COMPETITION_COLUMNS, type Competition, type CompetitionDate } from "@/lib/competencias";
@@ -16,7 +16,9 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Preparación deportiva · Juez General" };
 
 export default async function PreparationPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const profile = await requireRole("juez_general");
+  const profile = await requireProfile();
+  if (profile.rol !== "administrador" && profile.rol !== "juez_general") return null;
+  const canEdit = profile.rol === "administrador";
   const raw = await searchParams;
   const query = Object.fromEntries(Object.entries(raw).map(([key, value]) => [key, typeof value === "string" && validId(value) ? value : ""]));
   let seasons: Season[] = [], dates: CompetitionDate[] = [], competitions: Competition[] = [], controls: Preparation[] = [], formats: StageFormat[] = [], categories: SeasonCategory[] = [], rules: Rule[] = [], concepts: Concept[] = [], levels: Concept[] = [];
@@ -101,7 +103,7 @@ export default async function PreparationPage({ searchParams }: { searchParams: 
           };
         })}/>}
         {query.competencia && !editing && <p role="alert" className="panel-card">La competencia no pertenece a esta jornada.</p>}
-        {editing && <><h3 className="mb-3 text-xl font-bold">{label(editing)}</h3><p className="mb-3 text-sm">Reglamento: {rule ? `${rule.titulo} (${rule.version}) · ${rule.estado_revision}` : "Pendiente de asociar por Administración"}. No se valida el reglamento desde este panel.</p><PreparationForm key={editing.id} seasonId={season.id} dateId={date.id} day={date.fecha} competition={editing} record={p} formats={formats.filter(f => f.competencia_id === editing.id)} blockers={preparationBlockers(editing, date, p, category ? { ...category, catalogos_activos: !!concepts.find(c => c.id === category.categoria_id)?.activo && !!levels.find(n => n.id === category.nivel_id)?.activo } : null, rule, formats.filter(f => f.competencia_id === editing.id))} refreshHref={href(editing.id)}/></>}
+        {editing && <><h3 className="mb-3 text-xl font-bold">{label(editing)}</h3><p className="mb-3 text-sm">Reglamento: {rule ? `${rule.titulo} (${rule.version}) · ${rule.estado_revision}` : "Pendiente de asociar por Administración"}. No se valida el reglamento desde este panel.</p><PreparationForm key={editing.id} seasonId={season.id} dateId={date.id} day={date.fecha} competition={editing} record={p} formats={formats.filter(f => f.competencia_id === editing.id)} blockers={preparationBlockers(editing, date, p, category ? { ...category, catalogos_activos: !!concepts.find(c => c.id === category.categoria_id)?.activo && !!levels.find(n => n.id === category.nivel_id)?.activo } : null, rule, formats.filter(f => f.competencia_id === editing.id))} refreshHref={href(editing.id)} editable={canEdit}/></>}
       </>}
     </>}
   </DashboardShell>;

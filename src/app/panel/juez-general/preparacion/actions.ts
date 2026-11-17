@@ -49,7 +49,7 @@ function failure(e: unknown): CatalogState {
 }
 
 export async function savePreparation(seasonId: number, dateId: number, id: number, revision: string | null, _prev: CatalogState, form: FormData): Promise<CatalogState> {
-  await requireRole("juez_general");
+  await requireRole("administrador");
   try {
     const { db, c, p, date } = await context(seasonId, dateId, id);
     const result = validatePreparation(form, date.fecha);
@@ -71,13 +71,21 @@ export async function savePreparation(seasonId: number, dateId: number, id: numb
 }
 
 export async function saveStageFormat(seasonId: number, dateId: number, id: number, stage: string, revision: string | null, _prev: CatalogState, form: FormData): Promise<CatalogState> {
-  await requireRole("juez_general");
+  await requireRole("administrador");
   if (!STAGES.some(s => s === stage)) return { error: "Etapa no válida." };
   const result = validateStage(form);
   if (Object.keys(result.errors).length) return { error: "Revisa los sets y su referencia.", ...result };
   try {
     const { db, p } = await context(seasonId, dateId, id);
     if (!p) return { error: "Guarda primero el borrador deportivo.", values: result.values };
+    if (stage === "final") {
+      if (result.payload.mejor_de !== 5) return { error: "La final se disputa siempre al mejor de 5 sets.", values: { ...result.values, mejor_de: "5" } };
+      if (!result.payload.referencia_resolucion) return { error: "Registra una referencia deportiva para la regla de final al mejor de 5 sets.", values: result.values };
+      const configured = await db.rpc("configurar_formato_final_021", { p_competencia_id: id, p_referencia: result.payload.referencia_resolucion });
+      if (configured.error) return { error: preparationError(configured.error), values: result.values };
+      invalidate();
+      return { success: "Final configurada al mejor de 5 sets con su referencia trazable.", values: { ...result.values, mejor_de: "5" } };
+    }
     const current = await db.from("competencia_formatos_sets").select(FORMAT_COLUMNS).eq("competencia_id", id).eq("etapa", stage).maybeSingle();
     if (current.error) return { error: "No se pudo comprobar esta etapa.", values: result.values };
     if ((current.data?.actualizado_en ?? null) !== revision) return { error: "La etapa cambió en otra sesión. Recarga antes de guardar.", values: result.values };
@@ -94,7 +102,7 @@ export async function saveStageFormat(seasonId: number, dateId: number, id: numb
 }
 
 export async function approvePreparation(seasonId: number, dateId: number, id: number, revision: string | null, _prev: CatalogState, form: FormData): Promise<CatalogState> {
-  await requireRole("juez_general");
+  await requireRole("administrador");
   if (form.get("confirmacion") !== "revisada") return { error: "Confirma que revisaste la configuración guardada y sus referencias." };
   try {
     const { db, c, p, date } = await context(seasonId, dateId, id);

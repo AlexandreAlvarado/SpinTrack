@@ -30,7 +30,7 @@ function load(path, mocks = {}) {
   mod._compile(ts.transpileModule(readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText, filename);
   return mod.exports;
 }
-const routes = [base, base + "/competencias", base + "/jugadores", base + "/catalogos/clubes", base + "/catalogos/localidades", base + "/temporadas-deportivas", base + "/categorias-niveles"];
+const routes = [base, base + "/competencias", base + "/jugadores", base + "/arbitraje", base + "/catalogos/clubes", base + "/catalogos/localidades", base + "/temporadas-deportivas", base + "/categorias-niveles"];
 for (const current of routes) test("menú agrupado, rutas únicas y sección activa: " + current, () => {
   const { AdminNavigation } = load("components/admin-navigation.tsx", { "next/navigation": { usePathname: () => current } });
   const html = renderToStaticMarkup(React.createElement(AdminNavigation));
@@ -46,13 +46,28 @@ test("shell: título del administrador, menú móvil y distinción con Juez Gene
   const { DashboardShell } = load("components/dashboard-shell.tsx", {
     "@/lib/roles": roles,
     "@/components/admin-navigation": { AdminNavigation: () => React.createElement("nav", null, "Gestión administrativa") },
-    "@/components/judge-navigation": { JudgeNavigation: () => React.createElement("nav", null, "Dirección deportiva") },
+    "@/components/judge-navigation": { JudgeNavigation: () => React.createElement("nav", null, "Mi panel · Dirección deportiva") },
   });
   const admin = renderToStaticMarkup(React.createElement(DashboardShell, { role: "administrador", nombre: "Prueba" }));
   assert.match(admin, /Panel de administración/);assert.match(admin, /Menú del panel/);assert.match(admin, /lg:hidden/);assert.match(admin, /hidden lg:block/);
   assert.ok(!admin.includes("Mi panel"));assert.ok(!admin.includes("Dirección deportiva"));
   const judge = renderToStaticMarkup(React.createElement(DashboardShell, { role: "juez_general", nombre: "Prueba" }));
   assert.match(judge, /Juez General/);assert.match(judge, /Mi panel/);assert.match(judge, /Dirección deportiva/);assert.ok(!judge.includes("Gestión administrativa"));
+});
+
+test("una sesión muestra ambos paneles solo con arbitraje habilitado", () => {
+  const { DashboardShell } = load("components/dashboard-shell.tsx", {
+    "@/lib/roles": { ROLE_LABELS: { jugador: "Jugador" }, ROLE_PATHS: { jugador: "/panel/jugador" } },
+    "@/components/admin-navigation": { AdminNavigation: () => null },
+    "@/components/judge-navigation": { JudgeNavigation: () => null },
+  });
+  for (const enabled of [true, false]) {
+    const html = renderToStaticMarkup(React.createElement(DashboardShell, { role: "jugador", nombre: "Titular", arbitrajeHabilitado: enabled }));
+    assert.equal(html.includes('href="/panel/arbitro/resultados"'), enabled);
+    assert.ok(html.includes('href="/panel/jugador"'));
+    assert.ok(!html.includes("Cerrar sesión"));
+    assert.ok(!html.includes("<form"));
+  }
 });
 
 const seasons = [{ id: 4, nombre: "Temporada de prueba", anio: 2026 }];

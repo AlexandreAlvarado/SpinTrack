@@ -17,7 +17,7 @@ function StageForm({ seasonId, dateId, competition, stage, record, locked }: { s
     <button className="btn-secondary">{pending ? "Guardando…" : `Guardar ${STAGE_LABELS[stage]}`}</button>
   </fieldset>{record && <p className="mt-3 text-xs text-slate-600">Actualización: {displayLeagueTime(record.actualizado_en)} · actor {record.actualizado_por}.</p>}</form>;
 }
-export function PreparationForm({ seasonId, dateId, day, competition, record, formats, blockers, refreshHref }: { seasonId: number; dateId: number; day: string; competition: Competition; record: Preparation | null; formats: StageFormat[]; blockers: string[]; refreshHref: string }) {
+export function PreparationForm({ seasonId, dateId, day, competition, record, formats, blockers, refreshHref, editable = true }: { seasonId: number; dateId: number; day: string; competition: Competition; record: Preparation | null; formats: StageFormat[]; blockers: string[]; refreshHref: string; editable?: boolean }) {
   const [state, action, pending] = useActionState(savePreparation.bind(null, seasonId, dateId, competition.id, record?.actualizado_en ?? null), {} as CatalogState);
   const [approval, approve, approving] = useActionState(approvePreparation.bind(null, seasonId, dateId, competition.id, record?.actualizado_en ?? null), {} as CatalogState);
   const lock = preparationLock(competition, record);
@@ -28,7 +28,7 @@ export function PreparationForm({ seasonId, dateId, day, competition, record, fo
     <h3 className="text-xl font-bold">Preparar competencia #{competition.id}</h3>
     {lock && <p role="status" className="rounded-xl bg-amber-50 p-3 text-amber-900">{lock}</p>}
     <p className="text-sm text-slate-600">Guarda primero el borrador y luego cada etapa. La aprobación utiliza únicamente los datos guardados. No se completan reglas pendientes.</p>
-    <form action={action}><Feedback state={state}/><fieldset disabled={!!lock || pending || approving} className="grid gap-4 sm:grid-cols-2">
+    <form action={action}><Feedback state={state}/><fieldset disabled={!editable || !!lock || pending || approving} className="grid gap-4 sm:grid-cols-2">
       <label className="form-label">Inicio deportivo · America/Santiago<input className="input" name="inicio_programado" type="datetime-local" step="0.001" min={`${day}T00:00`} max={`${day}T23:59:59.999`} value={localStart} onChange={event => setLocalStart(event.target.value)}/></label>
       {santiagoCandidates(localStart).length > 1 && <label className="form-label">Ocurrencia si la hora se repite<select className="input" name="ocurrencia" defaultValue={state.values?.ocurrencia ?? repeatedHourChoice(record?.inicio_programado ?? null)}><option value="">Seleccionar solo si se repite</option><option value="primera">Primera ocurrencia</option><option value="segunda">Segunda ocurrencia</option></select></label>}
       <label className="form-label">Mínimo de participantes<input className="input" name="minimo_participantes" type="number" min="1" max="2147483647" value={minimum} onChange={event => setMinimum(event.target.value)}/></label>
@@ -41,9 +41,9 @@ export function PreparationForm({ seasonId, dateId, day, competition, record, fo
     </fieldset></form>
     <h3 className="text-lg font-bold">Sets por etapa</h3>
     {!record && <p>Guarda primero el borrador para habilitar las etapas.</p>}
-    <div className="grid gap-3 sm:grid-cols-2">{STAGES.map(stage => <StageForm key={stage} seasonId={seasonId} dateId={dateId} competition={competition} stage={stage} record={formats.find(f => f.etapa === stage) ?? null} locked={!!lock || !record || pending || approving}/>)}</div>
+    <div className="grid gap-3 sm:grid-cols-2">{STAGES.map(stage => <StageForm key={stage} seasonId={seasonId} dateId={dateId} competition={competition} stage={stage} record={formats.find(f => f.etapa === stage) ?? null} locked={!editable || !!lock || !record || pending || approving}/>)}</div>
     <section aria-label="Requisitos de aprobación"><h3 className="mb-2 text-lg font-bold">Requisitos pendientes</h3>{blockers.length ? <ul className="list-inside list-disc text-sm">{blockers.map(reason => <li key={reason}>{reason}</li>)}</ul> : <p>Los requisitos consultados están completos. PostgreSQL debe confirmar la aprobación.</p>}</section>
-    <form action={approve}><Feedback state={approval}/><fieldset disabled={!!lock || blockers.length > 0 || pending || approving} className="space-y-3"><label className="flex items-start gap-2"><input type="checkbox" name="confirmacion" value="revisada" required/><span>Revisé la configuración guardada y sus referencias documentales.</span></label><button className="btn-primary">{approving ? "Comprobando…" : "Aprobar configuración guardada"}</button></fieldset></form>
+    {editable && <form action={approve}><Feedback state={approval}/><fieldset disabled={!!lock || blockers.length > 0 || pending || approving} className="space-y-3"><label className="flex items-start gap-2"><input type="checkbox" name="confirmacion" value="revisada" required/><span>Revisé la configuración guardada y sus referencias documentales.</span></label><button className="btn-primary">{approving ? "Comprobando…" : "Aprobar configuración guardada"}</button></fieldset></form>}
     {record && <p className="text-xs text-slate-600">Última actualización: {displayLeagueTime(record.actualizado_en)} · actor {record.actualizado_por}. Aprobación: {displayLeagueTime(record.aprobado_en)}{record.aprobado_por ? ` · actor ${record.aprobado_por}` : ""}.</p>}
     <button type="button" className="btn-secondary" onClick={() => window.location.assign(refreshHref)}>Recargar datos guardados</button>
   </section>;

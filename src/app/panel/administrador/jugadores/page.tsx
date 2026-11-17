@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Form from "next/form";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { PlayerImport } from "@/components/player-import";
 import { PlayerForm, PlayerStatusButton } from "@/components/player-form";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -68,28 +69,31 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
     
     <h2 className="mb-3 text-2xl font-bold">Gestión de jugadores</h2>
     <p className="mb-5 text-sm text-slate-600">Registro deportivo privado. Identifica a cada persona por su ID, no solo por su nombre.</p>
-    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+    <div className="mb-5 flex flex-wrap gap-3"><Link className="btn-primary" href={href({ importar: "si" })}>Importar Excel</Link><Link className="btn-secondary" href={href({ agregar: "si" })}>Agregar jugador</Link></div>
+    {query.importar === "si" && <div className="mb-6"><PlayerImport/><Link className="btn-secondary mt-3" href={href()}>Cerrar importación</Link></div>}
+    <div className="grid items-start gap-6">
       <section className="panel-card min-w-0" aria-label="Listado de jugadores">
         <Form action={PLAYERS_PATH} role="search" className="mb-6 grid gap-3 sm:grid-cols-2">
           <label className="form-label">Buscar por nombre<input className="input" type="search" name="q" maxLength={100} defaultValue={q}/></label>
           <label className="form-label">Estado<select className="input" name="estado" defaultValue={estado}><option value="todos">Todos</option><option value="activo">Activos</option><option value="inactivo">Inactivos</option></select></label>
+          <details className="sm:col-span-2" open={!!(localidad || club || cuenta !== "todas")}><summary className="cursor-pointer font-semibold">Filtros avanzados</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
           <label className="form-label">Localidad<select className="input" name="localidad" defaultValue={localidad} disabled={localidades.error}><option value="">Todas</option>{optionItems(localidades.data)}</select></label>
           <label className="form-label">Club<select className="input" name="club" defaultValue={club} disabled={clubes.error}><option value="">Todos</option>{optionItems(clubes.data)}</select></label>
           <label className="form-label">Cuenta de usuario<select className="input" name="cuenta" defaultValue={cuenta}><option value="todas">Todas</option><option value="con">Con cuenta vinculada</option><option value="sin">Sin cuenta vinculada</option></select></label>
-          <div className="flex flex-wrap items-end gap-3"><button type="submit" className="btn-primary">Buscar</button><Link href={PLAYERS_PATH} className="btn-secondary">Limpiar</Link></div>
+          </div></details><div className="flex flex-wrap items-end gap-3"><button type="submit" className="btn-primary">Buscar</button><Link href={PLAYERS_PATH} className="btn-secondary">Limpiar</Link></div>
         </Form>
         {optionsError && <p role="alert" className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">No se pudieron cargar todas las opciones de localidades, clubes o cuentas. El formulario está temporalmente bloqueado para proteger las relaciones existentes.</p>}
         {listError ? <p role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">No se pudo consultar el listado. Comprueba la conexión y los permisos de Supabase. <Link href={href()} className="font-semibold underline">Reintentar</Link></p>
           : records.length === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-slate-600">{filtered ? "No hay jugadores para estos filtros." : page > 1 ? "No hay jugadores en esta página." : "Todavía no hay jugadores registrados. Registra el primero con sus datos reales."}</p>
-          : <><p className="mb-3 text-sm text-slate-500">{count} jugadores encontrados · Página {page}</p><div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Tabla desplazable horizontalmente">
-            <table className="w-full text-left text-sm"><caption className="sr-only">Jugadores registrados</caption>
-              <thead><tr className="border-b text-slate-500"><th scope="col" className="p-3">Jugador</th><th scope="col" className="p-3">Nacimiento</th><th scope="col" className="p-3">Procedencia / Club</th><th scope="col" className="p-3">Estado / Cuenta</th><th scope="col" className="p-3">Acciones</th></tr></thead>
-              <tbody>{records.map(item => <tr key={item.id} className="border-b border-slate-100 align-top">
-                <th scope="row" className="p-3 font-semibold">{item.nombre_completo}<span className="block font-normal text-slate-500">#{item.id}</span></th>
-                <td className="whitespace-nowrap p-3">{item.fecha_nacimiento ? item.fecha_nacimiento.split("-").reverse().join("/") : "Sin informar"}</td>
-                <td className="p-3">{relation(item.localidad_procedencia_id, localityNames)}<br/>{relation(item.club_id, clubNames)}</td>
-                <td className="p-3"><span className={item.activo ? "font-semibold text-green-700" : "text-slate-500"}>{item.activo ? "Activo" : "Inactivo"}</span><span className="mt-1 block text-xs text-slate-600">{item.perfil_id ? "Cuenta vinculada" : "Sin cuenta"}</span></td>
-                <td className="space-y-2 p-3"><Link className="inline-block font-semibold text-brand underline" href={href({ editar: String(item.id) })}>Editar<span className="sr-only"> jugador #{item.id}</span></Link><PlayerStatusButton record={item}/></td>
+          : <><p className="mb-3 text-sm text-slate-500">{count} jugadores encontrados · Página {page}</p><div className="min-w-0">
+            <table className="block w-full table-fixed text-left text-sm md:table"><caption className="sr-only">Jugadores registrados</caption>
+              <thead className="hidden md:table-header-group"><tr className="border-b text-slate-500"><th scope="col" className="p-3">Jugador</th><th scope="col" className="p-3">Nacimiento</th><th scope="col" className="p-3">Procedencia / Club</th><th scope="col" className="p-3">Estado / Cuenta</th><th scope="col" className="p-3">Acciones</th></tr></thead>
+              <tbody className="block md:table-row-group">{records.map(item => <tr key={item.id} className="block border-b border-slate-100 align-top md:table-row">
+                <th scope="row" className="block break-words p-3 font-semibold md:table-cell">{item.nombre_completo}<span className="block font-normal text-slate-500">#{item.id}</span></th>
+                <td className="block p-3 md:table-cell">{item.fecha_nacimiento ? item.fecha_nacimiento.split("-").reverse().join("/") : "Sin informar"}</td>
+                <td className="block break-words p-3 md:table-cell">{relation(item.localidad_procedencia_id, localityNames)}<br/>{relation(item.club_id, clubNames)}</td>
+                <td className="block break-words p-3 md:table-cell"><span className={item.activo ? "font-semibold text-green-700" : "text-slate-500"}>{item.activo ? "Activo" : "Inactivo"}</span><span className="mt-1 block text-xs text-slate-600">{item.perfil_id ? "Cuenta vinculada" : "Sin cuenta"}</span></td>
+                <td className="block space-y-2 p-3 md:table-cell"><Link className="inline-block font-semibold text-brand underline" href={href({ editar: String(item.id) })}>Editar<span className="sr-only"> jugador #{item.id}</span></Link><PlayerStatusButton record={item}/></td>
               </tr>)}</tbody>
             </table></div></>}
         {!listError && (page > 1 || count > page * PAGE_SIZE) && <nav aria-label="Paginación de jugadores" className="mt-5 flex flex-wrap gap-3">
@@ -97,9 +101,9 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
           {count > page * PAGE_SIZE && <Link href={href({ pagina: String(page + 1) })} className="btn-secondary">Siguiente</Link>}
         </nav>}
       </section>
-      {editError ? <section className="panel-card"><p role="alert" className="text-amber-900">{editError}</p><Link href={href()} className="btn-secondary mt-4">Volver al registro</Link></section>
+      {(query.agregar === "si" || query.editar) && (editError ? <section className="panel-card"><p role="alert" className="text-amber-900">{editError}</p><Link href={href()} className="btn-secondary mt-4">Volver al registro</Link></section>
         : optionsError ? <section className="panel-card"><p role="alert">No se pueden cargar las opciones del formulario.</p><Link href={href(query.editar ? { editar: query.editar } : {})} className="btn-secondary mt-4">Reintentar</Link></section>
-        : <PlayerForm key={record?.id ?? "nuevo"} record={record} localidades={localidades.data} clubes={clubes.data} perfiles={perfiles.data} today={todayInChile()} cancelHref={href()}/>}
+        : <PlayerForm key={record?.id ?? "nuevo"} record={record} localidades={localidades.data} clubes={clubes.data} perfiles={perfiles.data} today={todayInChile()} cancelHref={href()}/>)}
     </div>
   </DashboardShell>;
 }

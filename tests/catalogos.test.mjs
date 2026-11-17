@@ -143,6 +143,13 @@ test("FK rechazada o actualización sin filas no anuncian éxito", async () => {
   }
 });
 
+test("editar club sin selector conserva la asociación existente", async () => {
+  const { actions, calls } = serverHarness();
+  const state = await actions.saveCatalog("clubes", 1, {}, form({ nombre: "Club editado", localidad_id: "12", activo: "true" }));
+  assert.ok(state.success);
+  assert.deepEqual(calls.writes[0].payload, { nombre: "Club editado", localidad_id: 12, activo: true });
+});
+
 test("desactivar actualiza solo activo; no ejecuta borrado físico", async () => {
   const { actions, calls } = serverHarness();
   assert.ok((await actions.setCatalogActive("asociaciones", 1, false)).success);

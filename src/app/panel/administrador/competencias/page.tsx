@@ -2,6 +2,7 @@ import Link from "next/link";
 import Form from "next/form";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { CompetitionForm } from "@/components/competition-form";
+import { FinalReferenceRegularization } from "@/components/final-reference-regularization";
 import { officialStart } from "@/lib/preparacion-rapida";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -19,10 +20,11 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
   const q = (query.q ?? "").trim().slice(0, 100);
   const state = ["activo", "inactivo", "borrador", "pendiente", "aprobada"].includes(query.estado) ? query.estado : "todos";
   let seasons: Season[] = [], dates: CompetitionDate[] = [], categories: SeasonCategory[] = [], concepts: Concept[] = [], levels: Concept[] = [], competitions: Competition[] = [], controls: SportsControl[] = [];
+  let finalFormats: { competencia_id: number; mejor_de: number; referencia_resolucion: string | null }[] = [];
   let failed = false;
   try {
     const db = await createClient();
-    async function read<T>(table: string, columns: string, filters: Record<string, number> = {}): Promise<T[]> {
+    async function read<T>(table: string, columns: string, filters: Record<string, string | number> = {}): Promise<T[]> {
       const rows: T[] = [];
       for (let offset = 0; ; offset += 500) {
         let request = db.from(table).select(columns).order(table === "competencia_control_deportivo" ? "competencia_id" : "id").range(offset, offset + 499);
@@ -42,10 +44,11 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
         read<Concept>("categorias", "id,codigo,nombre,activo"), read<Concept>("niveles", "id,codigo,nombre,activo"),
       ]);
       const date = validId(query.fecha ?? "") ? dates.find(d => d.id === Number(query.fecha)) : undefined;
-      if (date) [competitions, controls] = await Promise.all([
+      if (date) [competitions, controls, finalFormats] = await Promise.all([
         // Solo lectura diagnóstica de la columna heredada; nunca configura ni limita participantes.
         read<Competition & { cupo_maximo: number | null }>("competencias", `${COMPETITION_COLUMNS},cupo_maximo`, { temporada_id: season.id, fecha_id: date.id }),
         read<SportsControl>("competencia_control_deportivo", "competencia_id,configuracion_aprobada,estado_deportivo,inicio_programado,minimo_participantes", { temporada_id: season.id }),
+        read<{ competencia_id: number; mejor_de: number; referencia_resolucion: string | null }>("competencia_formatos_sets", "competencia_id,mejor_de,referencia_resolucion", { etapa: "final" }),
       ]);
     }
   } catch { failed = true; }
@@ -57,6 +60,7 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
     suggestedStart: date ? officialStart(date.fecha, concepts.find(item => item.id === category.categoria_id)?.codigo ?? "", levels.find(item => item.id === category.nivel_id)?.codigo ?? "", category.rama) : "",
   }));
   const sports = (id: number) => controls.find(item => item.competencia_id === id) ?? null;
+  const finalFormat = (id: number) => finalFormats.find(item => item.competencia_id === id) ?? null;
   const registered = new Set(competitions.map(item => item.categoria_temporada_id));
   // Keep every existing record, including inactive categories and unavailable concepts.
   const rows = [
@@ -106,7 +110,7 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
       <p className="my-3 text-xs text-slate-500">Inicio deportivo en America/Santiago, editable por el Juez General. Las sugerencias corresponden solo al 07-11-2026; no se guardan automáticamente.</p>
       {alreadyCreated && <p role="status" className="mt-4 rounded-xl bg-green-50 p-3 text-sm text-green-800">Categoría asociada a la competencia #{alreadyCreated.id}. <Link className="font-semibold underline" href={href({ gestionar: String(alreadyCreated.id) }) + "#competition-form"}>Gestionar</Link></p>}
       {((selectedId && !managing) || (query.categoria && !creating && !alreadyCreated)) && <p role="alert" className="panel-card mt-4">La competencia no está disponible o la categoría está inactiva o no pertenece a esta temporada. <Link className="underline" href={href()}>Volver al listado</Link></p>}
-      {(managing || creating) && <div className="mt-4"><CompetitionForm key={[season.id, date.id, managing?.id ?? "nuevo", creating?.id ?? ""].join("-")} seasonId={season.id} date={date} record={managing} categories={options} registeredCategoryIds={competitions.map(item => item.categoria_temporada_id)} initialCategoryId={creating?.id ?? null} sports={managing ? sports(managing.id) : null} readOnly={!!managing && !options.some(item => item.id === managing.categoria_temporada_id)} cancelHref={href()}/></div>}
+      {(managing || creating) && <div className="mt-4"><CompetitionForm key={[season.id, date.id, managing?.id ?? "nuevo", creating?.id ?? ""].join("-")} seasonId={season.id} date={date} record={managing} categories={options} registeredCategoryIds={competitions.map(item => item.categoria_temporada_id)} initialCategoryId={creating?.id ?? null} sports={managing ? sports(managing.id) : null} readOnly={!!managing && !options.some(item => item.id === managing.categoria_temporada_id)} cancelHref={href()}/>{managing && sports(managing.id)?.configuracion_aprobada && finalFormat(managing.id)?.mejor_de === 5 && !finalFormat(managing.id)?.referencia_resolucion && <FinalReferenceRegularization competitionId={managing.id}/>}</div>}
     </>}
   </DashboardShell>;
 }

@@ -24,7 +24,7 @@ export function SeasonConfigurationForm({ kind, seasonId, record, categories, le
         {record ? <p className="text-sm">Versión: <strong>{(record as Rule).version}</strong>. La temporada y la versión no pueden cambiarse.</p> : field("version", "Versión documental", 50, true)}
         {field("titulo", "Título", 200, true)}
         {field("referencia_documental", "Referencia del documento oficial (sin datos privados)", 1000, true)}
-        {field("hash_documento", "SHA-256 del documento (opcional)", 64)}
+        <details><summary className="cursor-pointer text-sm font-semibold">Datos técnicos avanzados</summary><div className="mt-3">{field("hash_documento", "SHA-256 del documento (opcional)", 64)}</div></details>
         <label className="form-label">Revisión<select className="input" name="estado_revision" defaultValue={value("estado_revision", "pendiente")}><option value="pendiente">Pendiente de validación de la Liga</option><option value="validado">Formalmente validado por la Liga</option></select></label>
         {field("referencia_aprobacion", "Referencia de aprobación formal (obligatoria si está validado)", 1000)}
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="confirmacion_liga" value="true"/>Confirmo que la Liga aprobó formalmente esta versión y que la referencia permite verificarlo. Registrar un documento no equivale a aprobarlo.</label>

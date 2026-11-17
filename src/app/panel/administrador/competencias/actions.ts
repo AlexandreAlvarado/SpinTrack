@@ -75,3 +75,22 @@ export async function saveCompetition(seasonId: number, dateId: number, id: numb
   revalidatePath(COMPETITIONS_PATH);
   return { success: id === null ? "Competencia registrada. La aprobación deportiva corresponde al Juez General." : "Cambios guardados correctamente.", values: id === null ? undefined : values };
 }
+
+export async function regularizeFinalReference(_previous: CompetitionState, form: FormData): Promise<CompetitionState> {
+  await requireRole("administrador");
+  const competition = String(form.get("competencia_id") ?? "").trim();
+  const reference = String(form.get("referencia") ?? "").trim();
+  const reason = String(form.get("motivo") ?? "").trim();
+  if (!validId(competition) || !reference || reference.length > 1000 || !reason || reason.length > 1000) return { error: "Indica una referencia auténtica y el motivo de la regularización." };
+  const db = await createClient();
+  const response = await db.rpc("regularizar_respaldo_final_024", { p_competencia_id: Number(competition), p_referencia: reference, p_motivo: reason });
+  if (response.error) {
+    if (["42P01", "42883", "PGRST202", "PGRST205"].includes(response.error.code ?? "")) return { error: "La regularización requiere aplicar manualmente la migración 024." };
+    if (response.error.code === "23505") return { error: "La referencia ya existe o la regularización ya fue registrada; no se sobrescribió." };
+    if (response.error.code === "42501") return { error: "Solo el Administrador puede regularizar este respaldo." };
+    return { error: response.error.message ?? "No se pudo regularizar el respaldo de la final." };
+  }
+  revalidatePath(COMPETITIONS_PATH);
+  revalidatePath("/panel/juez-general/clasificacion");
+  return { success: "Respaldo de la final regularizado y auditado. La preparación existente no fue reiniciada." };
+}

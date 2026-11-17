@@ -21,6 +21,7 @@ export async function Header() {
             <p className="break-words px-3 pb-2 text-left font-semibold">{profile?.nombre ?? "Mi cuenta"}</p>
             <p className="mb-2 border-b border-slate-100 px-3 pb-3 text-xs text-slate-600">{profile ? ROLE_LABELS[profile.rol] : "No se pudo verificar tu perfil"}</p>
             <Link href={profile ? ROLE_PATHS[profile.rol] : "/panel"} className="nav-link block">Mi panel</Link>
+            {profile?.arbitrajeHabilitado && <><Link href="/panel/jugador" className="nav-link block">Mi panel de Jugador</Link><Link href="/panel/arbitro/resultados" className="nav-link block">Mis arbitrajes</Link></>}
             <form action={logout}><button type="submit" className="nav-link w-full text-left">Cerrar sesión</button></form>
           </div>
         </details> : <Link href="/login" className="btn-primary px-2">Ingresar</Link>}

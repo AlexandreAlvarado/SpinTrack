@@ -1022,3 +1022,11 @@ Se retiró la serialización global `pg_advisory_xact_lock(2026023,1)` de las op
 ### Flujo de final tras clasificación aprobada
 
 La vista operativa ya no devuelve al Juez General a Preparación cuando una llave confirmada carece de un dato visible en la interfaz. Reutiliza el respaldo de la llave y muestra directamente la asignación de árbitro. Si falta de verdad el respaldo documental o el formato final al mejor de cinco de 021, informa ese requisito como excepción administrativa concreta.
+
+### Regularización excepcional 024
+
+La migración [024_regularizar_respaldo_final.sql](../supabase/migrations/024_regularizar_respaldo_final.sql) agrega `regularizar_respaldo_final_024`. El Administrador la usa desde «Completar respaldo pendiente de final», indicando únicamente la referencia auténtica y el motivo. La RPC exige competencia aprobada/preparada, final al mejor de cinco, referencia ausente y ausencia de operación final incompatible; registra actor y fecha y no altera resultados, clasificación ni llaves. La validación 024 también impide entregar en el futuro una preparación sin formato/respaldo de final.
+
+#### 024: respaldo complementario sin reescritura histórica
+
+La regularización excepcional 024 inserta únicamente la referencia auténtica en `competencia_formato_final_021` y su auditoría en `competencia_final_regularizaciones_024`. No actualiza `competencia_formatos_sets`, por lo que una referencia histórica NULL se conserva. `iniciar_eliminatoria_018` (versión 021) usa el respaldo complementario cuando la fila histórica no contiene referencia; la final al mejor de cinco puede iniciarse y operar con esa fuente. Las protecciones de 003, 011 y 022 permanecen sin reemplazos ni excepciones de sesión.

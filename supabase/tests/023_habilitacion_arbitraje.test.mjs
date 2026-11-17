@@ -1,4 +1,4 @@
-// Cluster temporal exclusivo; no lee credenciales ni conecta a Supabase.
+﻿// Cluster temporal exclusivo; no lee credenciales ni conecta a Supabase.
 import fs from 'node:fs';
 import net from 'node:net';
 import Module from 'node:module';
@@ -50,44 +50,42 @@ try {
       sql(judge+`select public.confirmar_participantes_competencia(4004,array[4004,4005,4006,4007],'manual','Fixture');
         select public.guardar_grupos_competencia(4004,'[{"numero":1,"jugador_ids":[4004,4005,4006,4007]}]','Fixture');
         select public.confirmar_grupos_competencia(4004,'Fixture');select public.generar_partidos_grupos(4004,true,'Liga');select public.confirmar_partidos_grupos(4004,(select id from public.lotes_partidos_grupos where competencia_id=4004),'Liga');
-        select public.asignar_arbitro_partido((select min(id) from public.partidos),'e0040000-0000-0000-0000-000000000005','Asignación anterior a 023');`);
+        select public.asignar_arbitro_partido((select min(id) from public.partidos),'e0040000-0000-0000-0000-000000000005','AsignaciÃ³n anterior a 023');`);
       previousAssignments=sql(assignmentSnapshot);
     }
-    if(name.startsWith('022_')) {
-      sql(`update public.competencia_formatos_sets set referencia_resolucion=null where competencia_id=4004 and etapa='final';
-        delete from public.competencia_formato_final_021 where competencia_id=4004;`);
-    }
+    if(name.startsWith('024_')) sql(`alter table public.competencia_formatos_sets disable trigger user;update public.competencia_formatos_sets set referencia_resolucion=null where competencia_id=4004 and etapa='final';alter table public.competencia_formatos_sets enable trigger user;delete from public.competencia_formato_final_021 where competencia_id=4004;`);
     sql(file('supabase/migrations/'+name));
-    if(name.startsWith('022_')) sql(`set role authenticated;select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000001"}',false);update public.competencia_control_deportivo set configuracion_aprobada=true,estado_deportivo='preparada' where competencia_id=4004;`);
     if(name.startsWith('024_')) {
+      sql(`delete from public.competencia_formato_final_021 where competencia_id=4004;`);
       sql(`set role authenticated;select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000001"}',false);
-        select public.regularizar_respaldo_final_024(4004,'Bases 2026 § final al mejor de cinco','Regularización excepcional auditada de referencia histórica');`);
-      assert.equal(sql(`select referencia_resolucion='Bases 2026 § final al mejor de cinco' from public.competencia_formatos_sets where competencia_id=4004 and etapa='final'`),'t');
+        select public.regularizar_respaldo_final_024(4004,'Bases 2026 Â§ final al mejor de cinco','RegularizaciÃ³n excepcional auditada de referencia histÃ³rica');`);
+      assert.equal(sql(`select coalesce(referencia_resolucion,'NULL') from public.competencia_formatos_sets where competencia_id=4004 and etapa='final'`),'NULL');
+      assert.equal(sql(`select count(*)=1 from public.competencia_formato_final_021 where competencia_id=4004`),'t');
       assert.equal(sql(`select count(*)=1 from public.competencia_final_regularizaciones_024 where competencia_id=4004`),'t');
       sql(`set role authenticated;select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000003"}',false);select public.reject004($q$select public.regularizar_respaldo_final_024(4004,'Falsa','Sin permiso')$q$,'42501');`);
-      sql(`set role authenticated;select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000001"}',false);select public.reject004($q$select public.regularizar_respaldo_final_024(4004,'Otra','Repetición')$q$,'23505');`);
+      sql(`set role authenticated;select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000001"}',false);select public.reject004($q$select public.regularizar_respaldo_final_024(4004,'Otra','RepeticiÃ³n')$q$,'23505');`);
     }
-    if(name.startsWith('023_')) assert.equal(sql(assignmentSnapshot),previousAssignments,'023 conserva asignaciones y auditoría anteriores');
-    if (name.startsWith('021_')) sql(judge+`select public.configurar_formato_final_021(4004,'Formato final sintético local');`);
+    if(name.startsWith('023_')) assert.equal(sql(assignmentSnapshot),previousAssignments,'023 conserva asignaciones y auditorÃ­a anteriores');
+    if (name.startsWith('021_')) sql(judge+`select public.configurar_formato_final_021(4004,'Formato final sintÃ©tico local');`);
   }
   const session = suffix => `set role authenticated;select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-00000000000${suffix}"}',false);`;
   const admin=session(1), player=session(3), legacy=session(5);
   const check = (expression,label) => sql(`select public.check004(${expression},'${label}');`);
   const reject=(query,code='42501')=>`select public.reject004($query$${query}$query$,'${code}');`;
-  check(`(select arbitraje_habilitado from public.perfiles where id='e0040000-0000-0000-0000-000000000005')`,'Árbitro anterior conserva permisos');
+  check(`(select arbitraje_habilitado from public.perfiles where id='e0040000-0000-0000-0000-000000000005')`,'Ãrbitro anterior conserva permisos');
   check(`not (select arbitraje_habilitado from public.perfiles where id='e0040000-0000-0000-0000-000000000003')`,'Jugador sin arbitraje');
   sql(player+reject(`select public.habilitar_arbitraje_023(auth.uid(),true,false)`));
   sql(player+`update public.perfiles set arbitraje_habilitado=true where id=auth.uid();`);
   check(`not (select arbitraje_habilitado from public.perfiles where id='e0040000-0000-0000-0000-000000000003')`,'RLS impide autohabilitarse');
   sql(admin+`select public.habilitar_arbitraje_023('e0040000-0000-0000-0000-000000000003',true,false);`);
   check(`(select rol='jugador' and arbitraje_habilitado from public.perfiles where id='e0040000-0000-0000-0000-000000000003')`,'Identidad y rol conservados');
-  sql(player+`select public.check004(public.es_arbitro_013(),'Doble función');`);
+  sql(player+`select public.check004(public.es_arbitro_013(),'Doble funciÃ³n');`);
   sql(player+reject(`insert into public.arbitraje_habilitaciones_historial(perfil_id,habilitado,actor_id) values(auth.uid(),true,auth.uid())`));
   const own=Number(sql('select min(id) from public.partidos where jugador_a_id=4004 or jugador_b_id=4004'));
   const other=Number(sql('select min(id) from public.partidos where jugador_a_id<>4004 and jugador_b_id<>4004'));
   sql(judge+reject(`select public.asignar_arbitro_partido(${own},'e0040000-0000-0000-0000-000000000003','Auto')`,'23514'));
   sql(judge+`select public.asignar_arbitro_partido(${other},'e0040000-0000-0000-0000-000000000003','Otro encuentro');`);
-  const capture=(id,rev=0)=>`select public.capturar_resultado_partido(${id},${rev},'ordinario','[{"a":11,"b":5},{"a":11,"b":5}]','Acta','Reglas',true,'',${rev ? "'Corrección'" : 'null'});`;
+  const capture=(id,rev=0)=>`select public.capturar_resultado_partido(${id},${rev},'ordinario','[{"a":11,"b":5},{"a":11,"b":5}]','Acta','Reglas',true,'',${rev ? "'CorrecciÃ³n'" : 'null'});`;
   sql(player+capture(other));
   const act=Number(sql(`select id from public.resultados_partidos where partido_id=${other}`));
   sql(player+reject(`select public.confirmar_resultado_partido(${other},${act},1,'No autorizado')`));
@@ -95,34 +93,34 @@ try {
   sql(admin+`select public.habilitar_arbitraje_023('e0040000-0000-0000-0000-000000000003',false,true);`);
   sql(player+reject(capture(other,1)));
   sql(player+`select public.check004((select count(*)=0 from public.partidos),'RLS retira lectura operativa al revocar');`);
-  check(`(select count(*)=1 from public.resultados_partidos where partido_id=${other})`,'Revocación preserva acta');
+  check(`(select count(*)=1 from public.resultados_partidos where partido_id=${other})`,'RevocaciÃ³n preserva acta');
   sql(admin+`select public.habilitar_arbitraje_023('e0040000-0000-0000-0000-000000000003',true,false);`);
   sql(player+capture(other,1));
   const revised=Number(sql(`select id from public.resultados_partidos where partido_id=${other} and revision=2`));
   sql(judge+`select public.confirmar_resultado_partido(${other},${revised},2,'Revisado');`);
-  // Dos cambios administrativos sobre la misma versión: uno gana, otro es obsoleto.
+  // Dos cambios administrativos sobre la misma versiÃ³n: uno gana, otro es obsoleto.
   const change=admin+`select public.habilitar_arbitraje_023('e0040000-0000-0000-0000-000000000003',false,true);`;
   const race=await Promise.allSettled([concurrent(change),concurrent(change)]);
   assert.equal(race.filter(r=>r.status==='fulfilled').length,1);
-  check(`(select count(*)=4 from public.arbitraje_habilitaciones_historial)`,'Auditoría sin duplicados concurrentes');
-  sql(legacy+`select public.check004(public.es_arbitro_013(),'Cuenta solo Árbitro');`);
-  // Completar clasificación real y preparar una final con las RPC 019/020.
+  check(`(select count(*)=4 from public.arbitraje_habilitaciones_historial)`,'AuditorÃ­a sin duplicados concurrentes');
+  sql(legacy+`select public.check004(public.es_arbitro_013(),'Cuenta solo Ãrbitro');`);
+  // Completar clasificaciÃ³n real y preparar una final con las RPC 019/020.
   const last = value => value.split(/\r?\n/).at(-1);
   const matches = JSON.parse(sql(`select json_agg(p order by id) from public.partidos p where id<>${other}`));
   for (const match of matches) {
     sql(judge+`select public.asignar_arbitro_partido(${match.id},'e0040000-0000-0000-0000-000000000005','Completar grupo');`);
     const sets = match.jugador_a_id < match.jugador_b_id ? '[{"a":11,"b":5},{"a":11,"b":5}]' : '[{"a":5,"b":11},{"a":5,"b":11}]';
     const id=Number(last(sql(legacy+`select public.capturar_resultado_partido(${match.id},0,'ordinario','${sets}','Acta','Reglas',true);`)));
-    sql(judge+`select public.confirmar_resultado_partido(${match.id},${id},1,'Revisión de grupo');`);
+    sql(judge+`select public.confirmar_resultado_partido(${match.id},${id},1,'RevisiÃ³n de grupo');`);
   }
   const group=Number(sql('select id from public.grupos_competencia where competencia_id=4004'));
   const standings=JSON.parse(last(sql(judge+`select public.consultar_clasificacion_grupo(${group});`)));
   const quote = value => "'"+JSON.stringify(value).replaceAll("'","''")+"'::jsonb";
-  sql(judge+`select public.aprobar_clasificacion_grupo(${group},${quote(standings.snapshot)},'Clasificación local',true,true);`);
+  sql(judge+`select public.aprobar_clasificacion_grupo(${group},${quote(standings.snapshot)},'ClasificaciÃ³n local',true,true);`);
   const proposal={version_regla:19,posiciones:2,clasificados:2,pases_automaticos:0,metodo_distribucion:'final_grupo_unico',clasificaciones:standings.filas.slice(0,2).map((row,i)=>({grupo_id:group,posicion:i+1,jugador_id:row.jugador_id,snapshot:standings.snapshot})),rondas:[]};
   const key=Number(last(sql(judge+`select public.guardar_propuesta_eliminatoria_019(4004,${quote(proposal)},'Propuesta local');`)));
-  sql(judge+`select public.confirmar_llave_eliminatoria_019(${key},'Confirmación local',true,true,'Reglas locales','Respaldo local');`);
-  // Habilitar de nuevo al finalista: la habilitación nunca permite arbitrar su final.
+  sql(judge+`select public.confirmar_llave_eliminatoria_019(${key},'ConfirmaciÃ³n local',true,true,'Reglas locales','Respaldo local');`);
+  // Habilitar de nuevo al finalista: la habilitaciÃ³n nunca permite arbitrar su final.
   sql(admin+`select public.habilitar_arbitraje_023('e0040000-0000-0000-0000-000000000003',true,false);`);
   sql(judge+reject(`select public.preparar_asignar_final_eliminatoria_020(${key},'e0040000-0000-0000-0000-000000000003','Final propia')`,'23514'));
   sql(judge+`select public.preparar_asignar_final_eliminatoria_020(${key},'e0040000-0000-0000-0000-000000000005','Asignar final');`);
@@ -133,24 +131,24 @@ try {
   sql(legacy+reject(operate('comenzar')));
   sql(legacy+`select public.check004((select count(*)=0 from public.eliminatorias_partidos),'RLS retira lectura eliminatoria al revocar');`);
   const assignmentRace=await Promise.allSettled([
-    concurrent(judge+`select public.operar_eliminatoria_018(${final},'asignar',0,'Reasignación por revocación','e0040000-0000-0000-0000-000000000004');`),
+    concurrent(judge+`select public.operar_eliminatoria_018(${final},'asignar',0,'ReasignaciÃ³n por revocaciÃ³n','e0040000-0000-0000-0000-000000000004');`),
     concurrent(judge+`select public.operar_eliminatoria_018(${final},'asignar',0,'Autoarbitraje concurrente','e0040000-0000-0000-0000-000000000003');`),
   ]);
   assert.equal(assignmentRace.filter(result=>result.status==='fulfilled').length,1);
-  check(`(select arbitro_id='e0040000-0000-0000-0000-000000000004' from public.eliminatorias_partidos where id=${final})`,'Asignación concurrente consistente');
+  check(`(select arbitro_id='e0040000-0000-0000-0000-000000000004' from public.eliminatorias_partidos where id=${final})`,'AsignaciÃ³n concurrente consistente');
   sql(session(4)+operate('comenzar'));
-  // Cambio supervisado de vínculo: el árbitro ahora es participante. Bloquear acto.
+  // Cambio supervisado de vÃ­nculo: el Ã¡rbitro ahora es participante. Bloquear acto.
   sql(admin+`update public.jugadores set perfil_id=null where perfil_id='e0040000-0000-0000-0000-000000000004';update public.jugadores set perfil_id='e0040000-0000-0000-0000-000000000004' where id=4005;`);
   sql(session(4)+reject(operate('enviar'),'23514'));
   sql(admin+`select public.habilitar_arbitraje_023('e0040000-0000-0000-0000-000000000005',true,false);`);
-  sql(judge+`select public.operar_eliminatoria_018(${final},'asignar',0,'Reasignación por identidad participante','e0040000-0000-0000-0000-000000000005');`);
+  sql(judge+`select public.operar_eliminatoria_018(${final},'asignar',0,'ReasignaciÃ³n por identidad participante','e0040000-0000-0000-0000-000000000005');`);
   sql(legacy+operate('enviar'));
   sql(judge+operate('observar',1));
   sql(legacy+operate('enviar',1));
   const confirmations=await Promise.allSettled([concurrent(judge+operate('confirmar',2)),concurrent(judge+operate('confirmar',2))]);
   assert.equal(confirmations.filter(r=>r.status==='fulfilled').length,2);
-  check(`(select estado='finalizado' from public.eliminatorias_cuadros where llave_id=${key})`,'Final y campeón');
-  check(`(select count(*)=1 from public.eliminatorias_eventos where partido_id=${final} and evento='confirmado')`,'Confirmación idempotente');
+  check(`(select estado='finalizado' from public.eliminatorias_cuadros where llave_id=${key})`,'Final y campeÃ³n');
+  check(`(select count(*)=1 from public.eliminatorias_eventos where partido_id=${final} and evento='confirmado')`,'ConfirmaciÃ³n idempotente');
   // Otra competencia de la misma jornada: inscribirse en 4004 no excluye arbitrar 4005.
   sql(`insert into public.jugadores(id,nombre_completo,fecha_nacimiento) overriding system value select id,'Fixture '||id,'2000-01-01'::date from generate_series(4009,4012) id;`);
   sql(judge+`insert into public.habilitaciones_jugador_categoria(jugador_id,categoria_temporada_id,estado,motivo,referencia_evidencia) select id,4005,'habilitado','Fixture','Fixture' from generate_series(4009,4012) id;
@@ -158,7 +156,7 @@ try {
     select public.guardar_grupos_competencia(4005,'[{"numero":1,"jugador_ids":[4005,4006,4007,4008]},{"numero":2,"jugador_ids":[4009,4010,4011,4012]}]','Fixture');
     select public.confirmar_grupos_competencia(4005,'Fixture');select public.generar_partidos_grupos(4005,true,'Liga');select public.confirmar_partidos_grupos(4005,(select id from public.lotes_partidos_grupos where competencia_id=4005),'Liga');`);
   const secondMatches=JSON.parse(sql(`select json_agg(p order by id) from public.partidos p where competencia_id=4005`));
-  // Dos mesas independientes no deben quedar detrás del antiguo bloqueo global 2026023.
+  // Dos mesas independientes no deben quedar detrÃ¡s del antiguo bloqueo global 2026023.
   sql(admin+`update public.jugadores set perfil_id=null where perfil_id in('e0040000-0000-0000-0000-000000000004','e0040000-0000-0000-0000-000000000005');select public.habilitar_arbitraje_023('e0040000-0000-0000-0000-000000000004',true,true);`);
   const independentA=secondMatches[0], independentB=secondMatches[1];
   sql(judge+`select public.asignar_arbitro_partido(${independentA.id},'e0040000-0000-0000-0000-000000000004','Mesa independiente A');
@@ -178,13 +176,13 @@ try {
     sql(judge+`select public.asignar_arbitro_partido(${match.id},'e0040000-0000-0000-0000-000000000004','Otra competencia');`);
     const scores=match.jugador_a_id<match.jugador_b_id?'[{"a":11,"b":5},{"a":11,"b":5}]':'[{"a":5,"b":11},{"a":5,"b":11}]';
     const actId=Number(last(sql(session(4)+`select public.capturar_resultado_partido(${match.id},0,'ordinario','${scores}','Acta','Reglas',true);`)));
-    sql(judge+`select public.confirmar_resultado_partido(${match.id},${actId},1,'Revisión');`);
+    sql(judge+`select public.confirmar_resultado_partido(${match.id},${actId},1,'RevisiÃ³n');`);
   }
   const secondGroups=JSON.parse(sql('select json_agg(id order by numero) from public.grupos_competencia where competencia_id=4005'));
   const classifications=[];
   for(const id of secondGroups) {
     const current=JSON.parse(last(sql(judge+`select public.consultar_clasificacion_grupo(${id});`)));
-    sql(judge+`select public.aprobar_clasificacion_grupo(${id},${quote(current.snapshot)},'Clasificación local',true,true);`);
+    sql(judge+`select public.aprobar_clasificacion_grupo(${id},${quote(current.snapshot)},'ClasificaciÃ³n local',true,true);`);
     classifications.push(JSON.parse(last(sql(judge+`select public.consultar_clasificacion_grupo(${id});`))));
   }
   const engine=new Module(path.join(root,'src/lib/eliminatorias.ts'));
@@ -193,11 +191,11 @@ try {
   const bracket=engine.exports.persistableProposal(input,engine.exports.proposeBracket(input));
   const secondKey=Number(last(sql(judge+`select public.guardar_propuesta_eliminatoria_017(4005,${quote(bracket)},'Propuesta local');`)));
   sql(judge+`select public.confirmar_llave_eliminatoria_016(${secondKey},'Confirmar local',true,true,'Reglas locales');`);
-  // Respaldo documental sintético exclusivo del clúster temporal.
+  // Respaldo documental sintÃ©tico exclusivo del clÃºster temporal.
   sql(`insert into public.eliminatorias_respaldos(llave_id,referencia_distribucion,referencia_pases_reencuentros,registrado_por) values(${secondKey},'Fixture','Fixture','e0040000-0000-0000-0000-000000000002');`);
   sql(judge+`select public.iniciar_eliminatoria_018(${secondKey},'Inicio local');`);
   const futureFinal=Number(sql(`select id from public.eliminatorias_partidos where llave_id=${secondKey} and ronda_numero=2`));
-  // Simular una asignación histórica anticipada con participantes todavía pendientes.
+  // Simular una asignaciÃ³n histÃ³rica anticipada con participantes todavÃ­a pendientes.
   // No se otorgan permisos de escritura a clientes para crear este escenario.
   sql(`select set_config('request.jwt.claims','{"sub":"e0040000-0000-0000-0000-000000000002"}',false);update public.eliminatorias_partidos set arbitro_id='e0040000-0000-0000-0000-000000000003' where id=${futureFinal};`);
   sql(admin+`update public.jugadores set perfil_id=null where perfil_id in('e0040000-0000-0000-0000-000000000003','e0040000-0000-0000-0000-000000000004');update public.jugadores set perfil_id='e0040000-0000-0000-0000-000000000003' where id=4005;`);
@@ -209,8 +207,8 @@ try {
   }
   check(`exists(select 1 from public.eliminatorias_partidos where id=${futureFinal} and 4005 in(jugador_a_id,jugador_b_id))`,'Ganador propagado a final');
   sql(player+reject(`select public.operar_eliminatoria_018(${futureFinal},'comenzar',0,'Autoarbitraje tras avance')`,'23514'));
-  sql(judge+`select public.operar_eliminatoria_018(${futureFinal},'asignar',0,'Reasignación tras avance','e0040000-0000-0000-0000-000000000005');`);
-  console.log('023 PostgreSQL temporal: cuentas, RLS/RPC, otra competencia, grupos, final 019/020, semifinales y avance real, autoarbitraje, reasignación, sets, revisión, revocación y concurrencia aprobados.');
+  sql(judge+`select public.operar_eliminatoria_018(${futureFinal},'asignar',0,'ReasignaciÃ³n tras avance','e0040000-0000-0000-0000-000000000005');`);
+  console.log('023 PostgreSQL temporal: cuentas, RLS/RPC, otra competencia, grupos, final 019/020, semifinales y avance real, autoarbitraje, reasignaciÃ³n, sets, revisiÃ³n, revocaciÃ³n y concurrencia aprobados.');
 } finally {
  if(started) assert.equal(run('pg_ctl',['-D',data,'-m','immediate','-w','stop']).status,0);
  assert.ok(path.resolve(scratch).startsWith(path.resolve(root,'test-results')+path.sep));

@@ -1,4 +1,4 @@
--- SpinTrack 024: regularización administrativa excepcional del respaldo 021.
+﻿-- SpinTrack 024: regularizaciÃ³n administrativa excepcional del respaldo 021.
 -- No modifica resultados, clasificaciones, llaves ni participantes.
 begin;
 set local lock_timeout='5s';
@@ -25,8 +25,9 @@ drop policy if exists regularizaciones_final_admin_024 on public.competencia_fin
 create policy regularizaciones_final_admin_024 on public.competencia_final_regularizaciones_024
   for select to authenticated using ((select public.es_administrador()));
 
--- 022 conserva la preparación como propiedad del Administrador, pero esta
--- validación evita entregar una competencia sin formato/respaldo de la final.
+-- La regularizaciÃ³n complementa el respaldo 021 sin modificar la preparaciÃ³n histÃ³rica.
+-- 022 conserva la preparaciÃ³n como propiedad del Administrador, pero esta
+-- validaciÃ³n evita entregar una competencia sin formato/respaldo de la final.
 create or replace function public.validar_entrega_preparacion_024() returns trigger
 language plpgsql security definer set search_path='' as $$
 begin
@@ -39,7 +40,7 @@ begin
     where f.competencia_id=new.competencia_id and f.mejor_de=5
       and nullif(btrim(f.referencia_resolucion),'') is not null
   ) then
-    raise exception 'La preparación no puede entregarse: falta respaldo de la final al mejor de 5' using errcode='23514';
+    raise exception 'La preparaciÃ³n no puede entregarse: falta respaldo de la final al mejor de 5' using errcode='23514';
   end if;
   return new;
 end $$;
@@ -50,7 +51,7 @@ for each row execute function public.validar_entrega_preparacion_024();
 create or replace function public.regularizar_respaldo_final_024(
   p_competencia_id bigint, p_referencia text, p_motivo text
 ) returns boolean language plpgsql security definer set search_path='' as $$
-declare c public.competencia_control_deportivo; f public.competencia_formatos_sets; key_id bigint;
+declare c public.competencia_control_deportivo; f public.competencia_formatos_sets;
 begin
   if auth.uid() is null or public.es_administrador() is distinct from true then
     raise exception 'Solo Administrador puede regularizar el respaldo de la final' using errcode='42501';
@@ -62,30 +63,26 @@ begin
   perform 1 from public.competencias where id=p_competencia_id for update;
   select * into c from public.competencia_control_deportivo where competencia_id=p_competencia_id for update;
   if c.competencia_id is null or c.configuracion_aprobada is distinct from true or c.estado_deportivo<>'preparada' then
-    raise exception 'La competencia no está preparada y aprobada' using errcode='55000';
+    raise exception 'La competencia no estÃ¡ preparada y aprobada' using errcode='55000';
   end if;
   select * into f from public.competencia_formatos_sets where competencia_id=p_competencia_id and etapa='final' for update;
   if f.competencia_id is null or f.mejor_de<>5 then
-    raise exception 'La final no está configurada al mejor de 5' using errcode='55000';
+    raise exception 'La final no estÃ¡ configurada al mejor de 5' using errcode='55000';
   end if;
   if nullif(btrim(f.referencia_resolucion),'') is not null
      or exists(select 1 from public.competencia_formato_final_021 where competencia_id=p_competencia_id) then
     raise exception 'La referencia de la final ya existe; no se sobrescribe' using errcode='23505';
   end if;
   if exists(select 1 from public.competencia_final_regularizaciones_024 where competencia_id=p_competencia_id) then
-    raise exception 'La regularización ya fue registrada' using errcode='23505';
+    raise exception 'La regularizaciÃ³n ya fue registrada' using errcode='23505';
   end if;
   if exists(
     select 1 from public.eliminatorias_cuadros q
     join public.eliminatorias_partidos p on p.llave_id=q.llave_id
     where q.competencia_id=p_competencia_id and p.ronda_numero=1 and p.estado<>'pendiente'
   ) then
-    raise exception 'La final ya tiene una operación incompatible o confirmada' using errcode='55000';
+    raise exception 'La final ya tiene una operaciÃ³n incompatible o confirmada' using errcode='55000';
   end if;
-  perform set_config('spintrack.regularizacion_024','on',true);
-  update public.competencia_formatos_sets set referencia_resolucion=btrim(p_referencia)
-    where competencia_id=p_competencia_id and etapa='final' and referencia_resolucion is null;
-  if not found then raise exception 'La referencia ya cambió; recargue' using errcode='40001'; end if;
   insert into public.competencia_formato_final_021(competencia_id,mejor_de,referencia_resolucion,actualizado_por)
     values(p_competencia_id,5,btrim(p_referencia),auth.uid());
   insert into public.competencia_final_regularizaciones_024(competencia_id,referencia_deportiva,motivo,regularizado_por)
@@ -95,3 +92,5 @@ end $$;
 revoke all on function public.regularizar_respaldo_final_024(bigint,text,text) from public,anon,authenticated,service_role;
 grant execute on function public.regularizar_respaldo_final_024(bigint,text,text) to authenticated;
 commit;
+
+

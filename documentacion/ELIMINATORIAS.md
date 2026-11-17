@@ -227,3 +227,9 @@ Cierre local 023 (2026-11-17): runner PostgreSQL aprobado también para dos grup
 ### Revisión de concurrencia 023
 
 Las operaciones de eliminatorias ya no dependen de un bloqueo global compartido con partidos de otras competencias. Se mantienen el orden cuadro → partido y las comprobaciones de autoarbitraje, revocación y reasignación.
+
+### Regularización de respaldo final 024
+
+Para competencias históricas aprobadas al mejor de cinco con referencia faltante, el Administrador puede ejecutar la regularización excepcional de 024 desde la gestión de la competencia. La operación es idempotente y auditada, no sobrescribe referencias existentes y no modifica la llave confirmada ni los resultados. Una vez registrada la referencia auténtica, el Juez General recupera la final operativa existente y continúa con la asignación del árbitro.
+
+La regularización 024 no corrige la fila histórica `competencia_formatos_sets`: conserva NULL y registra el respaldo verificable en `competencia_formato_final_021`. La RPC de inicio de eliminatoria toma esa referencia complementaria cuando la histórica falta, manteniendo la final al mejor de cinco y las restricciones heredadas.

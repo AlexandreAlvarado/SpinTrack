@@ -70,7 +70,7 @@ export async function loadKnockoutPage(key: number | null, round: number, page: 
       }
     }
     const playerIds = [...new Set([...matches.flatMap(m => [m.jugador_a_id, m.jugador_b_id]), champion, finalist].filter((id): id is number => id !== null))];
-    const players = await read<KnockoutPage["players"][number]>("jugadores", "id", playerIds);
+    const players = await read<KnockoutPage["players"][number]>("jugadores", "id,nombre_completo,perfil_id", playerIds);
     return { matches, more, acts, history, players, referees, champion, finalist, state, authorized, authorizationIssue };
   } catch (error) {
     console.warn("[eliminatorias-018] lectura", error);

@@ -22,9 +22,12 @@ const { DateList } = load("../src/components/date-list.tsx", { ...common, "@/lib
 const board = load("../src/components/public-ranking.tsx", { ...common, react: React });
 const config = load("../src/lib/public-ranking.ts");
 const html = element => renderToStaticMarkup(element);
+const publicData = { temporadas: [], jornadas: [], competencias: [], detalle: null };
+const tournaments = load("../src/lib/public-tournaments.ts", { "@/lib/config": { supabaseConfigured: () => false }, "@/lib/supabase/server": {} });
+const publicMocks = { "@/lib/public-tournaments": { ...tournaments, getPublicTournaments: async () => ({ data: publicData, unavailable: false }) }, "@/components/public-tournament": { CompetitionCards: () => null, PublicReadNotice: () => null } };
 
 async function home() {
-  const page = load("../src/app/page.tsx", { ...common, "@/components/date-list": { DateList }, "@/lib/fechas": { getPublishedDates: async () => [] } });
+  const page = load("../src/app/page.tsx", { ...common, ...publicMocks, "@/components/date-list": { DateList } });
   return html(await page.default());
 }
 test("inicio público institucional, sin botones de autenticación ni logo repetido", async () => {
@@ -34,7 +37,7 @@ test("inicio público institucional, sin botones de autenticación ni logo repet
   assert.match(markup, /respeto y la cooperación/);
   assert.match(markup, /href="\/calendario"/); assert.match(markup, /href="\/ranking"/);
   assert.doesNotMatch(markup, /href="\/(login|registro)"|logo-liga-los-rios|Acceso a usuarios|Crear cuenta/);
-  assert.match(markup, /Todavía no hay fechas publicadas/);
+  assert.match(markup, /No hay próximas jornadas publicadas/);
   assert.match(markup, /Crear una cuenta en esta PWA no equivale a una inscripción deportiva/);
 });
 test("hero contiene únicamente las dos acciones deportivas", async () => {
@@ -43,8 +46,8 @@ test("hero contiene únicamente las dos acciones deportivas", async () => {
   assert.match(hero, /Ver calendario/); assert.match(hero, /Consultar ranking/);
 });
 test("calendario renderiza sin auth ni consultas privadas", async () => {
-  const page = load("../src/app/calendario/page.tsx", { ...common, "@/components/date-list": { DateList }, "@/lib/fechas": { getPublishedDates: async () => [] } });
-  const markup = html(await page.default());
+  const page = load("../src/app/calendario/page.tsx", { ...common, ...publicMocks, "@/components/date-list": { DateList } });
+  const markup = html(await page.default({ searchParams: Promise.resolve({}) }));
   assert.match(markup, /Calendario de competencias/);
   assert.match(markup, /No necesitas iniciar sesión/);
   assert.match(markup, /Todavía no hay fechas publicadas/);

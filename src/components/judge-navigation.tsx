@@ -2,10 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { JUDGE_PATH } from "@/lib/preparacion-deportiva";
-import { HABILITATIONS_PATH } from "@/lib/habilitaciones";
-
-const PARTICIPANTS_PATH = "/panel/juez-general/participantes";
 
 export function JudgeNavigation({ current }: { current: string }) {
   const pathname = usePathname();
@@ -28,11 +24,6 @@ export function JudgeNavigation({ current }: { current: string }) {
       <Link href={href("/panel/juez-general/clasificacion")} className="sidebar-link">3. Clasificación y eliminatorias</Link>
     </div>
     <details><summary className="cursor-pointer text-sm font-bold">Herramientas avanzadas y consultas</summary><div className="mt-3 grid gap-1">
-      <Link href={href(JUDGE_PATH)} className="sidebar-link" aria-current={active === JUDGE_PATH ? "page" : undefined}>Preparación deportiva</Link>
-      <Link href={href(HABILITATIONS_PATH)} className="sidebar-link" aria-current={active === HABILITATIONS_PATH ? "page" : undefined}>Habilitaciones deportivas</Link>
-      <Link href={href(PARTICIPANTS_PATH)} className="sidebar-link" aria-current={active === PARTICIPANTS_PATH ? "page" : undefined}>Participantes confirmados</Link>
-      <Link href={href("/panel/juez-general/grupos")} className="sidebar-link" aria-current={active === "/panel/juez-general/grupos" ? "page" : undefined}>Organización de grupos</Link>
-      <Link href={href("/panel/juez-general/partidos")} className="sidebar-link" aria-current={active === "/panel/juez-general/partidos" ? "page" : undefined}>Programación de partidos · Grupos</Link>
       <Link href={href("/panel/juez-general/resultados")} className="sidebar-link" aria-current={active === "/panel/juez-general/resultados" ? "page" : undefined}>Resultados por set</Link>
       <Link href={href("/panel/juez-general/clasificacion")} className="sidebar-link" aria-current={active === "/panel/juez-general/clasificacion" ? "page" : undefined}>Clasificación de grupos</Link>
     </div></details>

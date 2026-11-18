@@ -99,7 +99,7 @@ export default async function StandingsPage({ searchParams }: { searchParams: Pr
       <h3 className="mt-4 font-bold">{label} · Jornada {date?.numero}</h3><StandingsRefresh />
       {standings.length ? <GroupStandingsCollection groups={standings} /> : <p className="panel-card">No hay grupos para esta competencia.</p>}
       {confirmedKey?.estado === "confirmada" && <KnockoutOperations key={`knockout-operations-${confirmedKey.id}`} keyId={confirmedKey.id} positions={confirmedKey.posiciones} />}
-      <KnockoutPreview key={`knockout-preview-${competition.id}`} groups={standings} competitionId={competition.id} persisted={persisted} currentProposal={currentProposal} confirmed={confirmedKey} historicalDrafts={historicalDrafts} showSingleGroupFinal={!confirmedKey} />
+      {!confirmedKey && <KnockoutPreview key={`knockout-preview-${competition.id}`} groups={standings} competitionId={competition.id} persisted={persisted} currentProposal={currentProposal} confirmed={confirmedKey} historicalDrafts={historicalDrafts} showSingleGroupFinal />}
     </>}
   </DashboardShell>;
 }

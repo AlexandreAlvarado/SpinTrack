@@ -30,7 +30,7 @@ function load(path, mocks = {}) {
   mod._compile(ts.transpileModule(readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText, filename);
   return mod.exports;
 }
-const routes = [base, base + "/competencias", base + "/jugadores", base + "/arbitraje", base + "/catalogos/clubes", base + "/catalogos/localidades", base + "/temporadas-deportivas", base + "/categorias-niveles"];
+const routes = [base, base + "/competencias", base + "/jugadores", base + "/arbitraje", base + "/catalogos/clubes", base + "/catalogos/localidades", base + "/temporadas-deportivas", base + "/categorias-niveles", base + "/ranking"];
 for (const current of routes) test("menú agrupado, rutas únicas y sección activa: " + current, () => {
   const { AdminNavigation } = load("components/admin-navigation.tsx", { "next/navigation": { usePathname: () => current } });
   const html = renderToStaticMarkup(React.createElement(AdminNavigation));

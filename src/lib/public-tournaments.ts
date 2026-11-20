@@ -1,5 +1,6 @@
 import { supabaseConfigured } from "@/lib/config";
 import { createClient } from "@/lib/supabase/server";
+import { PERSONAL_DATA_REVIEW_PENDING } from "@/lib/legal";
 
 export type PublicSeason = { id: number; nombre: string; anio: number };
 export type PublicJourney = { id: number; temporada_id: number; numero: number; fecha: string; comuna: string; recinto: string; estado: string };
@@ -19,6 +20,10 @@ export async function getPublicTournaments(competitionId?: number): Promise<Publ
     const client = await createClient();
     const { data, error } = await client.rpc("consultar_torneos_publicos_025", { p_competencia_id: competitionId ?? null });
     if (error || !data) return { data: empty(), unavailable: true };
+    // También protege si el servidor aún usa la RPC histórica sin 030.
+    if (PERSONAL_DATA_REVIEW_PENDING) return { data: {
+      temporadas: data.temporadas ?? [], jornadas: data.jornadas ?? [], competencias: [], detalle: null,
+    }, unavailable: false };
     return { data: data as PublicTournamentData, unavailable: false };
   } catch {
     return { data: empty(), unavailable: true };

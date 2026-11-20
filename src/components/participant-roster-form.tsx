@@ -26,12 +26,13 @@ export function ParticipantRosterForm({ competitionId, players, selected }: { co
 
   return <form action={action} onSubmit={event => { if (!window.confirm("¿Confirmar esta nómina? PostgreSQL volverá a validar todas las condiciones deportivas.")) event.preventDefault(); }} className="panel-card space-y-4">
     <input type="hidden" name="competencia_id" value={competitionId} />
+    {selectedIds.map(id => <input key={id} type="hidden" name="jugador_id" value={id} />)}
     <label className="form-label">Buscar jugador<input className="input" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Nombre o ID" /></label>
     <p className="text-sm text-slate-600">Habilitados: {players.filter(player => player.habilitado).length} · Seleccionados: {selectedIds.length} · Confirmados: {players.filter(player => player.confirmado).length}</p>
     {selected.length > 0 && <label className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><input type="checkbox" checked={allowCorrections} onChange={event => setAllowCorrections(event.target.checked)} /><span>Habilitar correcciones de la nómina existente. Esto permite retirar participantes y exige una nueva confirmación.</span></label>}
     <section aria-label="Jugadores habilitados" className="space-y-2">
       <h3 className="font-semibold">Disponibles para seleccionar ({available.length})</h3>
-      <div className="max-h-[26rem] overflow-y-auto rounded border">{available.map(player => <label key={player.id} className="flex gap-3 border-b p-3"><input type="checkbox" name="jugador_id" value={player.id} disabled={player.confirmado && !allowCorrections} checked={selectedIds.includes(player.id)} onChange={event => toggle(player.id, event.target.checked)} /><span>{player.nombre_completo} <small>#{player.id}{player.confirmado ? " · Confirmado" : " · Habilitado"}</small></span></label>)}{!available.length && <p className="p-3 text-sm">No hay jugadores habilitados que coincidan.</p>}</div>
+      <div className="max-h-[26rem] overflow-y-auto rounded border">{available.map(player => <label key={player.id} className="flex gap-3 border-b p-3"><input type="checkbox" value={player.id} disabled={player.confirmado && !allowCorrections} checked={selectedIds.includes(player.id)} onChange={event => toggle(player.id, event.target.checked)} /><span>{player.nombre_completo} <small>#{player.id}{player.confirmado ? " · Confirmado" : " · Habilitado"}</small></span></label>)}{!available.length && <p className="p-3 text-sm">No hay jugadores habilitados que coincidan.</p>}</div>
     </section>
     <section aria-label="Jugadores pendientes o no elegibles" className="space-y-2">
       <h3 className="font-semibold">Pendientes o no elegibles ({unavailable.length})</h3>

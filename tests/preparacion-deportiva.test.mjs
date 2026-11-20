@@ -11,7 +11,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 function load(path, mocks = {}) {
   const filename = fileURLToPath(new URL(path, import.meta.url));
   const loaded = new Module(filename);
-  loaded.require = name => { assert.ok(Object.hasOwn(mocks, name), name); return mocks[name]; };
+  loaded.require = name => { if(name === "@/lib/legal") return {LEGAL_VERSION:"2026-11-19.1"}; assert.ok(Object.hasOwn(mocks, name), name); return mocks[name]; };
   loaded._compile(ts.transpileModule(readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText, filename);
   return loaded.exports;
 }
@@ -202,7 +202,7 @@ test("guard real requireRole utiliza el perfil verificado, no el rol de metadata
       "next/navigation": { redirect: path => { throw new Error(`redirect:${path}`); } },
       "@/lib/config": { supabaseConfigured: () => true },
       "@/lib/roles": { isRole: r => Object.hasOwn(roles, r), ROLE_PATHS: roles },
-      "@/lib/supabase/server": { createClient: async () => ({ auth: { getClaims: async () => ({ data: { claims: { sub: "identidad-verificada", user_metadata: { rol: "juez_general" } } }, error: null }) }, from: table => {
+      "@/lib/supabase/server": { createClient: async () => ({ rpc: async () => ({ data: { aceptada: true, version: "2026-11-19.1" }, error: null }), auth: { getClaims: async () => ({ data: { claims: { sub: "identidad-verificada", user_metadata: { rol: "juez_general" } } }, error: null }) }, from: table => {
         assert.equal(table, "perfiles");
         return { select: () => ({ eq: (key, value) => {
           assert.equal(key, "id"); assert.equal(value, "identidad-verificada");

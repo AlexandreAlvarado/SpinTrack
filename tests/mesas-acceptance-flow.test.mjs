@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import Module from 'node:module';
+import ts from 'typescript';
+const mod=new Module('programacion');
+mod._compile(ts.transpileModule(fs.readFileSync(new URL('../src/lib/programacion.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,'programacion');
+const {proposeSchedule}=mod.exports;
+test('aceptación mínima: 12 mesas, un árbitro, cuatro jugadores; revisión retiene y confirmación permite siguiente partido',()=>{
+  const start='2026-11-19T15:00:00Z';
+  const data={mesas:Array.from({length:12},(_,i)=>({id:i+1,numero:i+1,estado:'disponible'})),partidos:[[1,2],[1,3],[1,4],[2,3],[2,4],[3,4]].map(([a,b],i)=>({tipo:'grupo',id:i+1,competencia_id:1,a,b,perfil_a:null,perfil_b:null,arbitro_id:null,estado:'pendiente',elegible:true,inicio:null})),reservas:[],arbitros:[{id:'ref'}],historial:[]};
+  const propose=instant=>proposeSchedule(data,instant,60,0,['ref']).proposal;
+  const first=propose(start);assert.equal(first.length,1,'Doce mesas no implican doce árbitros disponibles');
+  const match=data.partidos.find(m=>m.id===first[0].partido);
+  const reservation={...first[0],id:1,estado:'asignada',jugadores:[match.a,match.b],perfiles:['ref']};
+  data.reservas.push(reservation);assert.equal(propose(start).length,0,'No se duplica la asignación ni el árbitro');
+  reservation.estado='en_juego';assert.equal(propose('2026-11-19T17:00:00Z').length,0,'El reloj estimado no libera un encuentro en juego');
+  reservation.estado='revision';match.estado='revision';match.elegible=false;
+  assert.equal(propose('2026-11-19T17:00:00Z').length,0,'Resultado enviado no libera recursos');
+  match.estado='confirmado';reservation.estado='liberada';reservation.liberado_en='2026-11-19T17:00:00Z';
+  const next=propose('2026-11-19T17:00:00.001Z');assert.equal(next.length,1);assert.equal(next[0].mesa_id,1);assert.notEqual(next[0].partido,match.id);assert.equal(data.partidos.filter(m=>m.estado==='confirmado').length,1,'El resultado confirmado se conserva');
+});

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { supabaseConfigured } from "@/lib/config";
 import { authOrigin, authError, passwordValue, validPassword } from "@/lib/auth-flow";
+import { acceptsLegal, LEGAL_VERSION, LEGAL_REVIEW_PENDING } from "@/lib/legal";
 
 function field(formData: FormData, name: string, max = 150): string {
   const value = formData.get(name);
@@ -27,11 +28,13 @@ export async function login(formData: FormData) {
 }
 
 export async function register(formData: FormData) {
+  if (!acceptsLegal(formData)) redirect("/registro?error=terminos");
+  if (LEGAL_REVIEW_PENDING) redirect("/registro?error=revision");
   if (!supabaseConfigured()) redirect("/registro?error=configuracion");
-  const nombre = field(formData, "nombre", 120);
-  const email = field(formData, "email", 320);
+  const nombre = typeof formData.get("nombre") === "string" ? String(formData.get("nombre")).trim() : "";
+  const email = typeof formData.get("email") === "string" ? String(formData.get("email")).trim() : "";
   const password = passwordValue(formData);
-  if (nombre.length < 3 || !email.includes("@") || !validPassword(password) || password !== passwordValue(formData, "confirmation")) {
+  if (nombre.length < 3 || nombre.length > 120 || email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !validPassword(password) || password !== passwordValue(formData, "confirmation")) {
     redirect("/registro?error=datos");
   }
   const supabase = await createClient();
@@ -41,7 +44,7 @@ export async function register(formData: FormData) {
     email,
     password,
     options: {
-      data: { full_name: nombre },
+      data: { full_name: nombre, terminos_version: LEGAL_VERSION, terminos_aceptados: true },
       emailRedirectTo: `${baseUrl}/auth/callback`,
     },
   }); } catch { redirect("/registro?error=envio"); }

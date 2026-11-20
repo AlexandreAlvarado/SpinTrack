@@ -3,6 +3,7 @@ import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { manageResult, type ResultState } from "@/app/panel/juez-general/resultados/actions";
 import { calculateSets, parseSetInputs, type MatchResult, type ResultEvent, type ResultKind } from "@/lib/resultados";
+import { formatSantiagoShortDateTime } from "@/lib/format";
 import type { GroupMatch } from "@/components/group-matches";
 
 export type ResultObservation = { id: number; resultado_id: number; juez_id: string; observacion: string; creado_en: string };
@@ -23,7 +24,7 @@ export function ResultCard({ match, bestOf, results, events, observations, name,
   const parsed = parseSetInputs(rows);
   const preview = Array.isArray(parsed) ? calculateSets(parsed, bestOf) : parsed;
   const person = (id: string) => people[id] ?? "Nombre no disponible";
-  const date = (value: string) => new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short", timeZone: "America/Santiago" }).format(new Date(value));
+  const date = formatSantiagoShortDateTime;
   return <article className="panel-card min-w-0 space-y-4">
     <header><h4 className="break-words text-lg font-bold">{name(match.jugador_a_id)} <span className="font-normal text-slate-500">vs.</span> {name(match.jugador_b_id)}</h4>{mode === "judge" && <p className="text-sm text-slate-600">Árbitro: {refereeName ?? "Sin asignar"}</p>}<p className="mt-2 text-sm font-semibold">{!current ? "Pendiente" : validated ? "Confirmado" : observed ? "Observado · requiere corrección" : "Enviado al Juez General · En revisión"}</p></header>
     {current && <div className="rounded-lg bg-slate-50 p-3 text-sm"><p>Revisión {current.revision} · enviado {date(current.creado_en)}</p>{current.tipo === "ordinario" ? <><p className="font-bold">{current.sets_a}–{current.sets_b} · Ganador: {name(current.ganador_id!)}</p><p>Sets: {current.sets.map(s => `${s.a}–${s.b}`).join(" / ")}</p></> : <p>{current.tipo}: {current.descripcion}. Sin ganador asignado.</p>}{observed && <p className="mt-2 rounded bg-amber-100 p-2"><strong>Observación del Juez:</strong> {latestObservation?.observacion}</p>}</div>}

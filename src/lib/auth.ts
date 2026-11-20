@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isRole, ROLE_PATHS, type Role } from "@/lib/roles";
 import { supabaseConfigured } from "@/lib/config";
+import { LEGAL_VERSION } from "@/lib/legal";
 
 export async function getCurrentIdentity() {
   if (!supabaseConfigured()) return { authenticated: false, profile: null };
@@ -36,6 +37,9 @@ export async function requireProfile() {
   if (!supabaseConfigured()) redirect("/login?error=configuracion");
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login?error=sesion");
+  const db = await createClient();
+  const legal = await db.rpc("estado_legal_028");
+  if (legal.error || legal.data?.version !== LEGAL_VERSION || legal.data?.aceptada !== true) redirect("/aceptar-terminos");
   return profile;
 }
 

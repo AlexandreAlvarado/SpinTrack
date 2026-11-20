@@ -15,6 +15,7 @@ const groups = [
     { label: "Localidades", href: base + "/catalogos/localidades" },
   ] },
   { label: "Configuración", items: [
+    { label: "Ranking oficial", href: base + "/ranking" },
     { label: "Reglamentos y categorías", children: [
       { label: "Por temporada", href: base + "/temporadas-deportivas" },
       { label: "Categorías y niveles", href: base + "/categorias-niveles" },

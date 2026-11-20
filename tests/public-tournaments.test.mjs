@@ -10,7 +10,7 @@ import { renderToStaticMarkup as html } from 'react-dom/server';
 function load(path, mocks = {}) {
   const filename = fileURLToPath(new URL(path, import.meta.url));
   const mod = new Module(filename);
-  mod.require = name => { assert.ok(Object.hasOwn(mocks,name),name); return mocks[name]; };
+  mod.require = name => { if (name === "@/lib/legal" && !Object.hasOwn(mocks, name)) return { LEGAL_REVIEW_PENDING: false, PERSONAL_DATA_REVIEW_PENDING: false }; assert.ok(Object.hasOwn(mocks,name),name); return mocks[name]; };
   mod._compile(ts.transpileModule(readFileSync(filename,'utf8'),{ compilerOptions: { module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX } }).outputText,filename);
   return mod.exports;
 }

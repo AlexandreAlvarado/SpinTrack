@@ -2,6 +2,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveGroups, confirmGroups, type GroupState } from "@/app/panel/juez-general/grupos/actions";
+import { formatSantiagoShortDateTime } from "@/lib/format";
 type Player = { id: number; nombre_completo: string; club?: string | null; localidad?: string | null };
 type Group = { numero: number; jugador_ids: number[] };
 type History = { id: number; evento: string; actor_id: string; ocurrido_en: string; referencia_trazabilidad: string };
@@ -33,6 +34,6 @@ export function GroupOrganizer({ competitionId, players, initialGroups, locked, 
       {saveState.error && <p role="alert">{saveState.error}</p>}{saveState.success && persistedStatus !== "confirmado" && <p role="status">{saveState.success}</p>}
     </form>
     {!locked && <form action={confirmAction} onSubmit={event => { if (!window.confirm("¿Confirmar definitivamente estos grupos?")) event.preventDefault(); }} className="panel-card space-y-3"><input type="hidden" name="competencia_id" value={competitionId}/><label className="form-label">Referencia de confirmación<input className="input" name="referencia_trazabilidad" required maxLength={1000}/></label><p className="text-sm">La confirmación exige que el borrador ya esté guardado y que PostgreSQL vuelva a validar toda la nómina.</p><button className="btn-primary" disabled={confirming || !groups.length}>Confirmar grupos</button>{confirmState.error && <p role="alert">{confirmState.error}</p>}{confirmState.success && <p role="status">{confirmState.success}</p>}</form>}
-    {history.length > 0 && <details className="panel-card"><summary className="cursor-pointer font-bold">Historial y referencias</summary><ol className="mt-3 space-y-2 text-sm">{history.map(event => <li key={event.id} className="border-l-2 border-slate-200 pl-3"><strong>{event.evento === "confirmado" ? "Confirmación" : "Borrador guardado"}</strong><span className="block text-slate-600">{new Date(event.ocurrido_en).toLocaleString("es-CL")} · Responsable registrado</span><span className="block">Referencia: {event.referencia_trazabilidad}</span></li>)}</ol></details>}
+    {history.length > 0 && <details className="panel-card"><summary className="cursor-pointer font-bold">Historial y referencias</summary><ol className="mt-3 space-y-2 text-sm">{history.map(event => <li key={event.id} className="border-l-2 border-slate-200 pl-3"><strong>{event.evento === "confirmado" ? "Confirmación" : "Borrador guardado"}</strong><span className="block text-slate-600">{formatSantiagoShortDateTime(event.ocurrido_en)} · Responsable registrado</span><span className="block">Referencia: {event.referencia_trazabilidad}</span></li>)}</ol></details>}
   </section>;
 }

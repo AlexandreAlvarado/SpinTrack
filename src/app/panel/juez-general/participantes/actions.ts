@@ -8,7 +8,10 @@ export type ParticipantState = { error?: string; success?: string };
 export async function confirmParticipants(_previous: ParticipantState, form: FormData): Promise<ParticipantState> {
   await requireRole("juez_general");
   const competition = form.get("competencia_id");
-  const ids = form.getAll("jugador_id").filter((x): x is string => typeof x === "string" && validId(x)).map(Number);
+  const submitted = form.getAll("jugador_id");
+  if (submitted.some(x => typeof x !== "string" || !validId(x))) return { error: "La nómina contiene identificadores inválidos. Recarga antes de confirmar." };
+  const ids = submitted.map(x => Number(x));
+  if (new Set(ids).size !== ids.length) return { error: "La nómina contiene jugadores duplicados. Recarga antes de confirmar." };
   const reason = form.get("motivo_retiro");
   const removalReason = typeof reason === "string" && reason.trim() ? reason.trim() : null;
   if (typeof competition !== "string" || !validId(competition) || (!ids.length && !removalReason)) return { error: "Selecciona una competencia y agrega al menos un jugador; para retirar a todos, escribe el motivo." };

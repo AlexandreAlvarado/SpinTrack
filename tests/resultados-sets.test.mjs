@@ -83,7 +83,7 @@ function componentHarness({results=[],events=[],bestOf=3,state={},mode="judge"}=
   const component=load('../src/components/match-results.tsx',{
     'react/jsx-runtime':jsx,'react':{...React,useActionState:()=>[state,()=>{requests++;},false],useEffect:()=>{},useState:initial=>{const i=cursor++;if(!(i in values))values[i]=initial;return [values[i],value=>{values[i]=typeof value==='function'?value(values[i]):value;}];}},
     'next/navigation':{useRouter:()=>({refresh(){}})},'@/lib/resultados':rules,
-    '@/app/panel/juez-general/resultados/actions':{manageResult:()=>assert.fail('render no escribe')},
+    '@/app/panel/juez-general/resultados/actions':{manageResult:()=>assert.fail('render no escribe')},'@/lib/format':{formatSantiagoShortDateTime:value=>value},
   });
   function resolve(node){if(Array.isArray(node))return node.map((child,i)=>{const resolved=resolve(child);return React.isValidElement(resolved)?React.cloneElement(resolved,{key:child?.key??i}):resolved;});if(!React.isValidElement(node))return node;if(typeof node.type==='function')return resolve(node.type(node.props));return React.cloneElement(node,{},resolve(node.props.children));}
   const render=()=>{cursor=0;return resolve(component.MatchResults({matches:[match],groups:[{id:4,numero:1}],players:[{id:10,nombre_completo:'Participante A'},{id:20,nombre_completo:'Participante B'}],bestOf,results,events,mode}));};

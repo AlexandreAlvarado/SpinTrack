@@ -1,4 +1,4 @@
-﻿import { test } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import Module from "node:module";
@@ -9,15 +9,16 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 function load(path, mocks = {}) {
  const filename = fileURLToPath(new URL(path, import.meta.url)); const m = new Module(filename);
- m.require = n => { assert.ok(Object.hasOwn(mocks,n), n); return mocks[n]; };
+ m.require = n => { if(n === "@/lib/legal") return legal; assert.ok(Object.hasOwn(mocks,n), n); return mocks[n]; };
  m._compile(ts.transpileModule(readFileSync(filename,"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,filename); return m.exports;
 }
 const flow = load("../src/lib/auth-flow.ts");
+const legal = load("../src/lib/legal.ts");
 const redirect = path => { throw Error(path); };
 function form(values) { const data = new FormData(); for (const [k,v] of Object.entries(values)) data.set(k,v); return data; }
 function actions(auth, recovery = false) { return load(recovery ? "../src/app/recovery-actions.ts" : "../src/app/actions.ts", {
  "next/navigation":{redirect}, "next/cache":{revalidatePath(){}}, "@/lib/config":{supabaseConfigured:()=>true}, "@/lib/auth-flow":flow,
- "@/lib/auth":{}, "@/lib/recovery":{beginRecovery:async()=>"intent",hasRecovery:async()=>auth.allowed ?? true,clearRecovery:async()=>{}}, "@/lib/supabase/server":{createClient:async()=>({auth})}
+ "@/lib/auth":{}, "@/lib/legal":legal, "@/lib/recovery":{beginRecovery:async()=>"intent",hasRecovery:async()=>auth.allowed ?? true,clearRecovery:async()=>{}}, "@/lib/supabase/server":{createClient:async()=>({auth})}
 }); }
 test("origen explícito rechaza esquemas, credenciales, rutas y nunca utiliza next",()=>{
  const previous=process.env.NEXT_PUBLIC_SITE_URL;
@@ -29,9 +30,16 @@ for(const [error,expected] of [[null,"/panel"],[{code:"invalid_credentials"},"/l
  const a=actions({signInWithPassword:async input=>{assert.equal(input.password,"  clave  ");return {error};}});
  await assert.rejects(()=>a.login(form({email:"test@example.org",password:"  clave  "})),{message:expected});
 });
-test("registro solo envía nombre, ignora rol suministrado",async()=>{
- const a=actions({signUp:async input=>{assert.deepEqual(input.options.data,{full_name:"Prueba"});return {data:{session:null},error:null};}});
- await assert.rejects(()=>a.register(form({nombre:"Prueba",email:"test@example.org",password:"Password123!",confirmation:"Password123!",rol:"administrador"})),{message:"/login?info=confirmacion"});
+test("registro envía nombre y aceptación vigente, ignora rol suministrado",async()=>{
+ const a=actions({signUp:async input=>{assert.deepEqual(input.options.data,{full_name:"Prueba",terminos_version:legal.LEGAL_VERSION,terminos_aceptados:true});return {data:{session:null},error:null};}});
+ await assert.rejects(()=>a.register(form({nombre:"Prueba",email:"test@example.org",password:"Password123!",confirmation:"Password123!",rol:"administrador",acepta_terminos:"on",terminos_version:legal.LEGAL_VERSION})),{message:"/login?info=confirmacion"});
+});
+
+for (const invalid of [{nombre:"ab"},{nombre:"a".repeat(121)},{email:"a@"},{email:"a@@example.org"},{email:"a b@example.org"},{password:"short"},{confirmation:"distinta"}]) test(`registro rechaza datos inválidos ${JSON.stringify(invalid)}`,async()=>{
+ let calls=0;
+ const a=actions({signUp:async()=>{calls++;throw Error('no debe registrar');}});
+ await assert.rejects(()=>a.register(form({nombre:"Prueba",email:"test@example.org",password:"Password123!",confirmation:"Password123!",acepta_terminos:"on",terminos_version:legal.LEGAL_VERSION,...invalid})),{message:"/registro?error=datos"});
+ assert.equal(calls,0);
 });
 for(const error of [null,{status:429},{code:"user_not_found"}]) test(`recuperación respuesta uniforme ${JSON.stringify(error)}`,async()=>{
  process.env.AUTH_RECOVERY_SECRET="a".repeat(64);

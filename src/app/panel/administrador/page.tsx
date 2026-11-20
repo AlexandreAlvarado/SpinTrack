@@ -10,14 +10,14 @@ export const metadata: Metadata = { title: "Panel de administración" };
 export const dynamic = "force-dynamic";
 const home = "/panel/administrador";
 type Season = { id: number; nombre: string; anio: number };
-type EventDate = { id: number; temporada_id: number; numero: number; fecha: string; comuna: string; recinto: string; estado: string };
+type EventDate = { id: number; temporada_id: number; numero: number; fecha: string; comuna: string; recinto: string; estado: string; archivada: boolean };
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; crear?: string }> }) {
   const profile = await requireRole("administrador");
   const supabase = await createClient();
   const [seasonsResult, datesResult, params] = await Promise.all([
     supabase.from("temporadas").select("id,nombre,anio").order("anio", { ascending: false }),
-    supabase.from("fechas").select("id,temporada_id,numero,fecha,comuna,recinto,estado").order("fecha", { ascending: false }),
+    supabase.from("fechas").select("id,temporada_id,numero,fecha,comuna,recinto,estado,archivada").order("fecha", { ascending: false }),
     searchParams,
   ]);
   const seasons = (seasonsResult.data ?? []) as Season[];
@@ -38,6 +38,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <h2 className="text-xl font-bold">Temporadas y jornadas</h2>
       <div className="flex flex-wrap gap-3">
         <Link href="/panel/juez-general/preparacion" className="btn-secondary">Preparación deportiva</Link>
+        {process.env.NODE_ENV !== "production" && <Link href="/panel/administrador/ranking/simulacion" className="btn-secondary">Simulación de ranking</Link>}
         <Link href={home + "?crear=jornada#nuevo-registro"} className="btn-primary">+ Nueva jornada</Link>
         <Link href={home + "?crear=temporada#nuevo-registro"} className="btn-secondary">Nueva temporada</Link>
       </div>
@@ -70,8 +71,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <tbody>{fechas.map(item => <tr className="border-b border-slate-100" key={item.id}>
             <th scope="row" className="p-3 font-bold">{item.numero}<span className="mt-1 block text-xs font-normal text-slate-500">{seasons.find(season => season.id === item.temporada_id)?.nombre ?? "Temporada no disponible"}</span></th>
             <td className="whitespace-nowrap p-3">{formatDate(item.fecha)}</td><td className="p-3">{item.comuna}</td><td className="p-3">{item.recinto}</td>
-            <td className="p-3"><span className={item.estado === "publicada" ? "font-semibold text-green-700" : "font-semibold text-amber-700"}>{item.estado === "publicada" ? "Publicada" : item.estado === "borrador" ? "Borrador" : item.estado}</span></td>
-            <td className="p-3"><Link className="font-semibold text-brand underline" href={home + "/competencias?" + new URLSearchParams({ temporada: String(item.temporada_id), fecha: String(item.id) })}>Gestionar competencias<span className="sr-only"> de la jornada {item.numero}, {formatDate(item.fecha)}</span></Link></td>
+            <td className="p-3"><span className={item.estado === "publicada" ? "font-semibold text-green-700" : "font-semibold text-amber-700"}>{item.estado === "publicada" ? "Publicada" : item.estado === "borrador" ? "Borrador" : item.estado}</span>{item.archivada && <span className="block text-xs text-slate-500">Archivada</span>}</td>
+            <td className="p-3"><Link className="mb-2 block font-semibold text-brand underline" href={`${home}/jornadas/${item.id}`}>Gestionar jornada {item.numero}</Link><Link className="font-semibold text-brand underline" href={home + "/competencias?" + new URLSearchParams({ temporada: String(item.temporada_id), fecha: String(item.id) })}>Gestionar competencias<span className="sr-only"> de la jornada {item.numero}, {formatDate(item.fecha)}</span></Link></td>
           </tr>)}</tbody>
         </table>
       </div>}

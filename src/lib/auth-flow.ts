@@ -1,5 +1,7 @@
 ﻿export function authOrigin() {
+  if (process.env.NODE_ENV === "production" && !process.env.NEXT_PUBLIC_SITE_URL) throw new Error("Configura el origen HTTPS de producción");
   const url = new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
+  if (process.env.NODE_ENV === "production" && url.protocol !== "https:") throw new Error("Producción requiere HTTPS");
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) throw new Error("URL de sitio inválida");
   return url.origin;
 }
@@ -15,6 +17,8 @@ export function passwordValue(data: FormData, key = "password") {
 }
 export function validPassword(password: string) { return password.length >= 8 && password.length <= 1024; }
 export const AUTH_MESSAGES: Record<string, string> = {
+  revision: "El registro está temporalmente suspendido durante la revisión institucional y de protección de menores. Consulta a la Liga en lrtenisdemesalr@gmail.com.",
+  terminos: "Debes aceptar los términos vigentes y leer la política de privacidad para crear tu cuenta.",
   configuracion: "El servicio no está disponible. Contacta a la administración.",
   credenciales: "No fue posible ingresar. Revisa tu correo y contraseña.",
   pendiente: "Confirma tu correo antes de iniciar sesión. Revisa también la carpeta de spam.",

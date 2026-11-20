@@ -1,4 +1,4 @@
-﻿import { test } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 function load(path, mocks = {}) {
   const filename = fileURLToPath(new URL(path, import.meta.url));
   const mod = new Module(filename);
-  mod.require = name => { assert.ok(Object.hasOwn(mocks, name), name); return mocks[name]; };
+  mod.require = name => { if(name === "@/lib/legal") return {LEGAL_VERSION:"2026-11-19.1"}; assert.ok(Object.hasOwn(mocks, name), name); return mocks[name]; };
   mod._compile(ts.transpileModule(readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText, filename);
   return mod.exports;
 }
@@ -54,7 +54,7 @@ for (const rol of roles.ROLES) test(`encabezado autenticado: ${rol}`, async () =
 });
 function authHarness({ claims = { sub: "real", user_metadata: { rol: "administrador" } }, claimError = null, profile = { id: "real", nombre_completo: "Nombre real", rol: "jugador" }, profileError = null } = {}) {
   const filters = [];
-  const client = { auth: { getClaims: async () => ({ data: { claims }, error: claimError }) }, from(table) {
+  const client = { rpc: async () => ({ data: { aceptada: true, version: "2026-11-19.1" }, error: null }), auth: { getClaims: async () => ({ data: { claims }, error: claimError }) }, from(table) {
     assert.equal(table, "perfiles");
     return { select(cols) { assert.equal(cols, "id, nombre_completo, rol, arbitraje_habilitado"); return this; }, eq(k,v) { filters.push([k,v]); return this; }, single: async () => ({ data: profile, error: profileError }) };
   } };

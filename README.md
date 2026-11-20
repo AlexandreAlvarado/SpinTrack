@@ -1,5 +1,7 @@
 # Liga Regional de Tenis de Mesa Los Ríos — PWA
 
+> Para el estado actual y la publicación controlada, usar [la auditoría y guía de Vercel](documentacion/DESPLIEGUE_VERCEL_PASO_A_PASO.md). Las instrucciones de Hito 1 que siguen son históricas y no indican reaplicar 001 sobre el proyecto existente.
+
 **Hito 1: base funcional** del proyecto de título. Diseñado para **un solo desarrollador**, de forma incremental.
 
 ## Qué está implementado

@@ -1,0 +1,18 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import Module from 'node:module';
+import ts from 'typescript';
+function load(name){const m=new Module(name);m._compile(ts.transpileModule(fs.readFileSync(new URL('../src/lib/'+name+'.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,name);return m.exports;}
+const {proposeSchedule}=load('programacion');
+const {schedulingOverview}=load('programacion-vista');
+const start='2026-11-19T15:00:00Z';
+function example(){const partidos=Array.from({length:15},(_,i)=>({tipo:'grupo',id:i+1,competencia_id:i%3+1,a:i*2+1,b:i*2+2,perfil_a:`player-${i*2+1}`,perfil_b:`player-${i*2+2}`,arbitro_id:null,estado:'pendiente',elegible:true,inicio:null,nombre_a:`Jugador ${i*2+1}`,nombre_b:`Jugador ${i*2+2}`}));
+  partidos.splice(1,0,{...partidos[0],id:101,competencia_id:2,b:99,perfil_b:'player-99'});
+  partidos.push({tipo:'eliminatoria',id:200,competencia_id:3,a:null,b:null,estado:'pendiente',elegible:false},{tipo:'grupo',id:300,competencia_id:3,a:901,b:902,arbitro_id:'000-busy',estado:'revision',elegible:false});
+  return {mesas:Array.from({length:12},(_,i)=>({id:i+1,numero:i+1,estado:'disponible'})),partidos,reservas:[],arbitros:[{id:'000-busy'},...Array.from({length:12},(_,i)=>({id:`ref-${String(i+1).padStart(2,'0')}`}))],historial:[]};
+}
+test('12 mesas: propuesta distribuye 12 cruces de tres competencias sin usar árbitro ocupado ni repetir jugadores',()=>{const d=example(),before=JSON.stringify(d);const p=proposeSchedule(d,start,20,0,d.arbitros.map(r=>r.id));assert.equal(p.proposal.length,12);assert.equal(new Set(p.proposal.map(a=>a.mesa_id)).size,12);assert.equal(new Set(p.proposal.map(a=>a.arbitro_id)).size,12);assert.ok(p.proposal.every(a=>a.arbitro_id!=='000-busy'));const matches=p.proposal.map(a=>d.partidos.find(m=>m.tipo===a.tipo&&m.id===a.partido));assert.equal(new Set(matches.map(m=>m.competencia_id)).size,3);assert.equal(new Set(matches.flatMap(m=>[m.a,m.b])).size,24);assert.ok(!p.proposal.some(a=>a.partido===200));assert.equal(JSON.stringify(d),before);});
+test('12 mesas: jugador compartido entre categorías se excluye aunque sobren mesas',()=>{const d=example();d.partidos=d.partidos.filter(m=>[1,101].includes(m.id));const p=proposeSchedule(d,start,20,0,d.arbitros.map(r=>r.id));assert.equal(p.proposal.length,1);assert.ok(p.warnings.some(w=>w.includes('jugador ocupado')));});
+test('indicadores separan ocupación vigente, reservas futuras, revisión y fuera de servicio',()=>{const d=example();assert.equal(schedulingOverview(d,Date.parse(start)).available,12);d.mesas[11].estado='fuera_servicio';d.reservas=[{id:1,mesa_id:1,estado:'revision',inicio:'2026-11-19T12:00Z',fin:'2026-11-19T12:20Z',tipo:'grupo',partido:1},{id:2,mesa_id:2,estado:'asignada',inicio:'2026-11-19T16:00Z',fin:'2026-11-19T16:20Z',tipo:'grupo',partido:2}];const v=schedulingOverview(d,Date.parse(start));assert.deepEqual([v.total,v.available,v.occupied,v.unavailable],[12,10,1,1]);assert.equal(v.available+v.occupied+v.unavailable,v.total);});
+test('todos confirmados y jornada sin partidos se distinguen sin recrear encuentros históricos',()=>{const d=example();d.partidos=d.partidos.slice(0,7).map(m=>({...m,estado:'confirmado',elegible:false}));const before=JSON.stringify(d);const v=schedulingOverview(d,Date.parse(start));assert.equal(v.allConfirmed,true);assert.equal(v.confirmed,7);assert.deepEqual(v.pending,[]);assert.deepEqual(proposeSchedule(d,start,20,0,d.arbitros.map(r=>r.id)).proposal,[]);assert.equal(JSON.stringify(d),before);d.partidos=[];assert.equal(schedulingOverview(d,Date.parse(start)).allConfirmed,false);});

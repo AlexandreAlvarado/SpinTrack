@@ -98,7 +98,7 @@ test('consulta Juez exige llave y ronda y descarta datos parciales ante error',a
   const failed=await harness('juez_general',{code:'42P01'}).actions.loadKnockoutPage(42,1,0);
   assert.ok(failed.error);assert.deepEqual(failed.matches,[]);
 });
-const cards=load('../src/components/match-results.tsx',{'react':React,'react/jsx-runtime':jsx,'next/navigation':{useRouter:()=>({refresh(){}})},'@/app/panel/juez-general/resultados/actions':{manageResult:async()=>({})},'@/lib/resultados':results});
+const cards=load('../src/components/match-results.tsx',{'react':React,'react/jsx-runtime':jsx,'next/navigation':{useRouter:()=>({refresh(){}})},'@/app/panel/juez-general/resultados/actions':{manageResult:async()=>({})},'@/lib/resultados':results,'@/lib/format':{formatSantiagoShortDateTime:value=>value}});
 function card(mode,events=[],observations=[]) {
   return renderToStaticMarkup(jsx.jsx(cards.ResultCard,{match:{id:1,grupo_id:1,jugador_a_id:10,jugador_b_id:11},bestOf:3,results:[lib.knockoutResult(act,match)],events,observations,name:id=>'Jugador '+id,mode,rulesReference:'Formato',actReference:'Acta',knockout:true,resultAction:async()=>({})}));
 }

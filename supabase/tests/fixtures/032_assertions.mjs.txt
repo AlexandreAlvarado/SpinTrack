@@ -1,0 +1,159 @@
+  // Capturas de todas las tablas y de las funciones privadas, no solo contadores.
+  for (const migration032 of ['027_mesas_programacion.sql','028_jornadas_y_aceptacion_legal.sql']) sql(file('supabase/migrations/'+migration032));
+  const missing029032=run('psql',args,file('supabase/migrations/032_publicacion_deportiva_segura.sql'));
+  assert.notEqual(missing029032.status,0,'032 rechaza instalación sin 029');
+  assert.match(missing029032.stderr,/requiere 001/);
+  assert.equal(sql("select to_regprocedure('public.nombre_publico_032(bigint)') is null"),'t','El rechazo es atómico');
+  sql(file('supabase/migrations/029_editar_perfil_deportivo.sql'));
+  const retired030032=run('psql',args,"begin;create function public.torneos_internos_revision_030(bigint) returns jsonb language sql as 'select ''{}''::jsonb';"+file('supabase/migrations/032_publicacion_deportiva_segura.sql'));
+  assert.notEqual(retired030032.status,0,'No modifica silenciosamente una 030 histórica');
+  assert.match(retired030032.stderr,/030 retirada/);
+  assert.equal(sql("select to_regprocedure('public.torneos_internos_revision_030(bigint)') is null"),'t');
+  const json032 = text => JSON.parse(text.trim().split(/\r?\n/).at(-1));
+  const anon032 = "set role anon;select set_config('request.jwt.claims','{}',false);";
+  const rpc032 = (name, arg='', session=anon032) => json032(sql(session+'select public.'+name+'('+arg+');'));
+  const tableNames032 = JSON.parse(sql("select jsonb_agg(tablename order by tablename) from pg_tables where schemaname in ('public')"));
+  const tables032 = () => Object.fromEntries(tableNames032.map(name => [name,sql('select coalesce(jsonb_agg(v order by v::text),\'[]\'::jsonb) from (select to_jsonb(t) v from public."'+name+'" t) q')]));
+  const functionsQuery032 = "select jsonb_agg(jsonb_build_array(p.oid::regprocedure::text,p.prosrc,p.proacl,p.prosecdef,p.proconfig) order by p.oid) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','privado_inscripciones') and p.proname not in ('consultar_torneos_publicos_025','consultar_ranking_publico_026','nombre_publico_032','consultar_torneos_publicos_032','consultar_ranking_publico_032')";
+  // Casos de edad y nombres reales SOLO del fixture desechable. Sin autorizaciones.
+  sql("update public.jugadores set fecha_nacimiento=case id when 4004 then date '1980-01-01' when 4005 then ((current_timestamp at time zone 'America/Santiago')::date-interval '10 years')::date when 4006 then null when 4007 then ((current_timestamp at time zone 'America/Santiago')::date-interval '18 years')::date else null end;");
+  const protectedNames032 = JSON.parse(sql("select jsonb_agg(nombre_completo) from public.jugadores where fecha_nacimiento is null or fecha_nacimiento > ((current_timestamp at time zone 'America/Santiago')::date-interval '18 years')::date"));
+  const beforeTables032 = tables032();
+  const beforeFunctions032 = sql(functionsQuery032);
+  const beforeTournaments032 = [4004,4005].map(id => rpc032('consultar_torneos_publicos_025',String(id)));
+  const beforeRanking032 = rpc032('consultar_ranking_publico_026');
+  assert.equal(beforeRanking032.length,2);
+  assert.ok(beforeRanking032.every(s=>s.results.length>=4));
+  sql(file('supabase/audits/032_preinstalacion_solo_lectura.sql'));
+  sql(file('supabase/migrations/032_publicacion_deportiva_segura.sql'));
+  sql(file('supabase/audits/032_postinstalacion_solo_lectura.sql'));
+  assert.deepEqual(tables032(),beforeTables032,'032 no modifica ninguna fila de ninguna tabla pública');
+  assert.equal(sql(functionsQuery032),beforeFunctions032,'032 conserva cuerpos y permisos de TODAS las funciones privadas');
+  const cleanNames032 = value => {
+    const copy=structuredClone(value);
+    const hide=name=>typeof name==='string'?'IDENTIDAD':name;
+    const match=m=>{m.a=hide(m.a);m.b=hide(m.b);};
+    for(const c of copy.competencias){c.campeon=hide(c.campeon);c.subcampeon=hide(c.subcampeon);}
+    for(const g of copy.detalle?.grupos??[]){g.jugadores=g.jugadores.map(hide);for(const r of g.clasificacion)r.nombre=hide(r.nombre);g.partidos.forEach(match);}
+    for(const r of copy.detalle?.rondas??[])r.partidos.forEach(match);
+    return copy;
+  };
+  const noLeaks032 = value => {
+    const text=JSON.stringify(value);
+    for (const name of protectedNames032) assert.ok(!text.includes(name),'No filtra nombre protegido: '+name);
+    const walk=v=>{if(Array.isArray(v))return v.forEach(walk);if(v&&typeof v==='object')for(const [key,item] of Object.entries(v)){assert.doesNotMatch(key,/email|password|fecha_nacimiento|perfil_id|usuario_id|raw_user_meta_data|referencia|autoridad|registrado_por|snapshot/);walk(item);}};
+    walk(value);
+  };
+  const rankEngine032 = new Module(path.join(root,'src/lib/ranking.ts'));
+  rankEngine032._compile(ts.transpileModule(file('src/lib/ranking.ts'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,path.join(root,'src/lib/ranking.ts'));
+  for (const session032 of [anon032,admin,judge,player]) {
+    for (const [index,id] of [4004,4005].entries()) {
+      const historic=rpc032('consultar_torneos_publicos_025',String(id),session032);
+      const current=rpc032('consultar_torneos_publicos_032',String(id),session032);
+      assert.deepEqual(current,historic,'025 y 032 aplican idéntica protección');
+      noLeaks032(current);
+      assert.deepEqual(cleanNames032(current),cleanNames032(beforeTournaments032[index]),'Calendario, grupos, clasificación, actas confirmadas y llaves conservan estructura y valores');
+      assert.ok(current.detalle.grupos.some(g=>g.clasificacion.length>0));
+      assert.ok(current.detalle.grupos.some(g=>g.partidos.some(p=>p.estado==='confirmado' && p.sets.length>0)));
+      assert.ok(current.detalle.rondas.some(r=>r.partidos.some(p=>p.estado==='confirmado')));
+    }
+    const ranking=rpc032('consultar_ranking_publico_032','',session032);
+    assert.deepEqual(ranking,rpc032('consultar_ranking_publico_026','',session032));
+    noLeaks032(ranking);
+    for (const [index,scope] of ranking.entries()) {
+      const old=beforeRanking032[index];
+      assert.deepEqual({...scope,results:[]},{...old,results:[]});
+      assert.equal(scope.results.length,old.results.length);
+      const map=new Map(),inverse=new Map();
+      for (const [i,row] of scope.results.entries()) {
+        const prior=old.results[i];
+        assert.ok(Number.isSafeInteger(row.playerId) && row.playerId>0);
+        assert.ok(row.playerId<4000,'No devuelve la PK privada de las fichas de prueba');
+        if (map.has(prior.playerId)) assert.equal(row.playerId,map.get(prior.playerId));
+        if (inverse.has(row.playerId)) assert.equal(prior.playerId,inverse.get(row.playerId));
+        map.set(prior.playerId,row.playerId);inverse.set(row.playerId,prior.playerId);
+        assert.deepEqual({...row,playerId:0,name:''},{...prior,playerId:0,name:''},'No cambia fecha, puntos, puesto ni estado');
+      }
+      assert.equal(map.size,inverse.size,'Correspondencia sin colisiones dentro de cada alcance');
+      const normalizedRows=(rows,convert)=>rows.map(r=>({...r,playerId:convert(r.playerId),name:'',dates:r.dates.map(d=>d?{...d,playerId:convert(d.playerId),name:''}:null)})).sort((a,b)=>a.playerId-b.playerId);
+      const oldCalculated=rankEngine032.exports.calculateRanking(old);
+      const calculated=rankEngine032.exports.calculateRanking(scope);
+      assert.equal(calculated.provisional,oldCalculated.provisional);
+      assert.deepEqual(normalizedRows(calculated.rows,id=>id),normalizedRows(oldCalculated.rows,id=>map.get(id)),'Agrupación, puestos, totales y desempates intactos');
+    }
+  }
+  // Fuente sintética multijornada, solo en una transacción revertida. No modifica
+  // tablas, reglamentos ni resultados: amplía el fixture para ensayar la agrupación.
+  const viewDefinition032=sql("select pg_get_viewdef('public.ranking_fuentes_026'::regclass,true)").replace(/;\s*$/,'');
+  const repeatedSource032="create or replace view public.ranking_fuentes_026 as select s.configuracion_id,s.competencia_id,d.fecha_numero,s.jugador_id,s.nombre_completo,s.terminado,s.ronda_perdida,s.puesto,s.puntos,s.estado from ("+viewDefinition032+") s cross join generate_series(1,7) d(fecha_numero)";
+  const sevenDates032=json032(sql("begin;"+repeatedSource032+';'+anon032+"select public.consultar_ranking_publico_032();rollback;"));
+  noLeaks032(sevenDates032);
+  for(const scope032 of sevenDates032) {
+    assert.equal(scope032.results.length,new Set(scope032.results.map(r=>r.playerId)).size*7);
+    const calculation032=rankEngine032.exports.calculateRanking(scope032);
+    assert.equal(calculation032.rows.length,new Set(scope032.results.map(r=>r.playerId)).size);
+    for(const row032 of calculation032.rows) {
+      assert.equal(row032.dates.filter(Boolean).length,7);
+      const point032=row032.dates[0].points;
+      assert.equal(row032.total,(point032??0)*7);
+      assert.equal(row032.valid,(point032??0)*6);
+      assert.equal(row032.wins,row032.dates[0].place===1?7:0);
+    }
+  }
+  // Los IDs son locales a la respuesta, NO identidades persistentes: pueden
+  // renumerarse si se retira un participante. El cliente recalcula por alcance.
+  const subset032=json032(sql("begin;"+repeatedSource032+" where s.jugador_id>4004;"+anon032+"select public.consultar_ranking_publico_032();rollback;"));
+  for(const scope032 of subset032) {
+    const calculated032=rankEngine032.exports.calculateRanking(scope032);
+    assert.equal(calculated032.rows.length,new Set(scope032.results.map(r=>r.playerId)).size);
+    assert.ok(scope032.results.every(r=>r.playerId>0));
+  }
+  assert.equal(sql("select pg_get_viewdef('public.ranking_fuentes_026'::regclass,true)").replace(/;\s*$/,''),viewDefinition032,'La fuente canónica queda restaurada');
+  const names032 = rpc032('consultar_torneos_publicos_032','4004').detalle.grupos[0].jugadores;
+  assert.equal(names032.length,4);
+  assert.equal(names032.filter(n=>n==='Participante con identidad reservada').length,2);
+  for (const id of [4004,4007]) assert.ok(names032.includes(sql('select nombre_completo from public.jugadores where id='+id)));
+  // Snapshot histórico con nombre obsoleto o contenido malicioso nunca se devuelve.
+  const poison032 = sql("begin;alter table public.clasificaciones_grupos_aprobaciones disable trigger user;update public.clasificaciones_grupos_aprobaciones set snapshot=jsonb_set(snapshot,'{filas}',(select jsonb_agg(jsonb_set(f,'{nombre_completo}',to_jsonb('NOMBRE_SNAPSHOT_PROTEGIDO_032'::text))) from jsonb_array_elements(snapshot->'filas') f));"+anon032+"select public.consultar_torneos_publicos_032(4004);rollback;");
+  const safeSnapshot032=json032(poison032);
+  assert.ok(safeSnapshot032.detalle.grupos[0].clasificacion.length>0);
+  assert.ok(!JSON.stringify(safeSnapshot032).includes('NOMBRE_SNAPSHOT_PROTEGIDO_032'));
+  noLeaks032(safeSnapshot032);
+  // Cambio de edad/identidad posterior se aplica también a snapshots aprobados.
+  const nowMinor032 = json032(sql("begin;update public.jugadores set fecha_nacimiento=((current_timestamp at time zone 'America/Santiago')::date-interval '17 years')::date where id in (4004,4007);"+anon032+"select public.consultar_torneos_publicos_032(4004);rollback;"));
+  assert.ok(nowMinor032.detalle.grupos[0].jugadores.every(n=>n==='Participante con identidad reservada'));
+  assert.ok(nowMinor032.detalle.grupos[0].clasificacion.every(n=>n.nombre==='Participante con identidad reservada'));
+  for (const role of ['anon','authenticated','service_role']) assert.equal(sql("select has_function_privilege('"+role+"','public.nombre_publico_032(bigint)','execute')"),'f');
+  sql(anon032+reject('select public.nombre_publico_032(4004)'));
+  for(const table of ['jugadores','perfiles','resultados_partidos','eliminatorias_actas','clasificaciones_grupos_aprobaciones','ranking_fuentes_026','ranking_resoluciones_026']) sql(anon032+reject('select * from public.'+table));
+  sql(anon032+reject('select public.consultar_gestion_ranking_026()'));
+  assert.deepEqual(rpc032('consultar_torneos_publicos_032','999999').detalle,null);
+  // Una publicación retirada sigue oculta, incluso para un operador.
+  const hidden032=json032(sql("begin;alter table public.competencias disable trigger user;update public.competencias set publicada=false,inscripciones_habilitadas=false where id=4005;"+admin+"select jsonb_build_object('torneo',public.consultar_torneos_publicos_032(4005),'ranking',public.consultar_ranking_publico_032());rollback;"));
+  assert.equal(hidden032.torneo.detalle,null);
+  assert.equal(hidden032.ranking.find(s=>s.id===2).results.length,0);
+  // Preparación e inscripción privada con roles reales del fixture. La referencia
+  // sintética solo existe en este clúster desechable; no es consentimiento público.
+  sql('begin;'+admin+`
+    insert into public.fechas(id,temporada_id,numero,fecha,comuna,recinto,estado)
+      values(32032,4004,9,(clock_timestamp() at time zone 'America/Santiago')::date+1,'Fixture 032','Fixture 032','publicada');
+    with nueva as (
+      insert into public.competencias(temporada_id,fecha_id,categoria_temporada_id,inscripcion_abre_en,inscripcion_cierra_en)
+        values(4004,32032,4005,clock_timestamp()-interval '1 hour',clock_timestamp()+interval '1 hour') returning id
+    ) select set_config('test.comp032',id::text,true) from nueva;
+    insert into public.competencia_control_deportivo(competencia_id,temporada_id) values(current_setting('test.comp032')::bigint,4004);
+    insert into public.competencia_formatos_sets(competencia_id,etapa,mejor_de,referencia_resolucion)
+      select current_setting('test.comp032')::bigint,etapa,mejor_de,'Fixture deportivo local 032' from public.competencia_formatos_sets where competencia_id=4005;
+    update public.competencia_control_deportivo set inicio_programado=
+      (((clock_timestamp() at time zone 'America/Santiago')::date+1)+time '23:59:59') at time zone 'America/Santiago',
+      minimo_participantes=4,grupo_minimo=3,grupo_maximo=4,formato_competencia='grupos_eliminacion_simple',
+      reglamento_id=4004,configuracion_aprobada=true,estado_deportivo='preparada'
+      where competencia_id=current_setting('test.comp032')::bigint;
+    update public.competencias set publicada=true,inscripciones_habilitadas=true where id=current_setting('test.comp032')::bigint;
+    select public.solicitar_inscripcion(4005,current_setting('test.comp032')::bigint,'Representación sintética solo para prueba local');
+  `+judge+`
+    select public.resolver_inscripcion((select id from public.inscripciones where competencia_id=current_setting('test.comp032')::bigint and jugador_id=4005),'aceptada','Decisión deportiva de fixture','Referencia local de fixture');
+    select public.check004((select estado='aceptada' from public.inscripciones where competencia_id=current_setting('test.comp032')::bigint and jugador_id=4005),'Menor inscrito y aceptado tras 032');
+  `+player+reject("select public.solicitar_inscripcion(4007,current_setting('test.comp032')::bigint,'Sin permiso')")+anon032+reject("select public.solicitar_inscripcion(4005,current_setting('test.comp032')::bigint,'Sin sesión')")+'rollback;');
+  assert.deepEqual(tables032(),beforeTables032,'Todas las pruebas de privacidad se revierten sin alterar historia');
+  console.log('032 PostgreSQL: esquema 001–029, anon/operadores 025/026/032, datos íntegros, snapshots, edades, permisos, ranking y participación aprobados.');

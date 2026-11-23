@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { PERSONAL_DATA_REVIEW_PENDING } from "@/lib/legal";
+
 import { publicState, type PublicCompetition, type PublicMatch, type PublicRound } from "@/lib/public-tournaments";
 
 export function PublicReadNotice({ unavailable }: { unavailable: boolean }) {
-  if (PERSONAL_DATA_REVIEW_PENDING) return <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm">La publicación de nombres, participantes, resultados y ranking está temporalmente suspendida durante la revisión institucional y de protección de menores. El calendario no identifica participantes.</p>;
   return unavailable ? <p role="status" className="empty-state">No pudimos cargar la información deportiva. Intenta nuevamente en unos minutos.</p> : null;
 }
 

@@ -21,5 +21,5 @@ test('031 archivada sin formar parte de las migraciones pendientes', () => {
   assert.equal(fs.existsSync(new URL('../supabase/migrations/031_activar_aceptacion_aprobada.sql', import.meta.url)), false);
   assert.match(read('supabase/referencias-retiradas/031_activar_aceptacion_aprobada.sql'), /drop trigger if exists resguardo_alta_revision_030/);
   const pending = fs.readdirSync(new URL('../supabase/migrations/', import.meta.url)).filter(name => /^\d+_.*\.sql$/.test(name) && Number(name.split('_')[0]) > 28);
-  assert.deepEqual(pending, ['029_editar_perfil_deportivo.sql']);
+  assert.deepEqual(pending, ['029_editar_perfil_deportivo.sql', '032_publicacion_deportiva_segura.sql']);
 });

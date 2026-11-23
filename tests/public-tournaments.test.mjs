@@ -61,5 +61,5 @@ test('RPC usa cliente normal, sin sesión obligatoria; error conserva estado no 
   const calls=[];
   const lib=load('../src/lib/public-tournaments.ts',{'@/lib/config':{supabaseConfigured:()=>true},'@/lib/supabase/server':{createClient:async()=>({rpc:async(...args)=>{calls.push(args);return {data:null,error:{code:'42883'}};}})}});
   assert.equal((await lib.getPublicTournaments(3)).unavailable,true);
-  assert.deepEqual(calls,[['consultar_torneos_publicos_025',{p_competencia_id:3}]]);
+  assert.deepEqual(calls,[['consultar_torneos_publicos_032',{p_competencia_id:3}]]);
 });

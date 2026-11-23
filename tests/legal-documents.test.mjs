@@ -38,13 +38,29 @@ test('cuenta existente no puede aceptar sin casilla o con version falsa',async()
   }
 });
 
-test('publicación conserva solo metadatos de calendario sin nombres, resultados o fichas',async()=>{
-  const lib=load('../src/lib/public-tournaments.ts',{'@/lib/legal':legal,'@/lib/config':{supabaseConfigured:()=>true},'@/lib/supabase/server':{createClient:async()=>({rpc:async()=>({data:{temporadas:[],jornadas:[{id:1}],competencias:[{campeon:'Nombre reservado'}],detalle:{nombre:'Menor reservado'}},error:null})})}});
+test('publicación conserva calendario y participación reservada sin exponer fichas ni recurrir a RPC histórica',async()=>{
+  // Sustituye la expectativa histórica de suspensión total por la proyección selectiva.
+  // La ausencia real de nombres protegidos se prueba en PostgreSQL 032, no en este mock.
+  const reserved='Participante con identidad reservada';
+  const payload={temporadas:[],jornadas:[{id:1}],competencias:[{id:1,campeon:reserved}],detalle:{grupos:[{numero:1,jugadores:[reserved],clasificacion:[{nombre:reserved,pj:1}],partidos:[]}],rondas:[]}};
+  const lib=load('../src/lib/public-tournaments.ts',{'@/lib/legal':legal,'@/lib/config':{supabaseConfigured:()=>true},'@/lib/supabase/server':{createClient:async()=>({rpc:async(name,args)=>{assert.equal(name,'consultar_torneos_publicos_032');assert.deepEqual(args,{p_competencia_id:1});return {data:payload,error:null};}})}});
   const result=await lib.getPublicTournaments(1);
-  assert.deepEqual(result.data,{temporadas:[],jornadas:[{id:1}],competencias:[],detalle:null});
-  assert.ok(!JSON.stringify(result).includes('reservado'));
+  assert.deepEqual(result,{data:payload,unavailable:false});
+  assert.doesNotMatch(JSON.stringify(result),/fecha_nacimiento|perfil_id|snapshot|email/);
 });
-test('ranking no consulta datos mientras la publicación está suspendida',async()=>{
-  const lib=load('../src/lib/ranking-data.ts',{'@/lib/legal':legal,'@/lib/config':{},'@/lib/supabase/server':{},'@/lib/ranking':{}});
-  assert.deepEqual(await lib.getSeasonRanking(),{scopes:[],unavailable:true});
+test('ranking sin RPC segura no publica datos ni consulta la histórica',async()=>{
+  let calls=0;
+  const lib=load('../src/lib/ranking-data.ts',{'@/lib/config':{supabaseConfigured:()=>true},'@/lib/supabase/server':{createClient:async()=>({rpc:async(name)=>{calls++;assert.equal(name,'consultar_ranking_publico_032');return {data:null,error:{code:'PGRST202'}};}})},'@/lib/ranking':{}});
+  assert.deepEqual(await lib.getSeasonRanking(),{scopes:[],unavailable:true});assert.equal(calls,1);
+});
+
+test('torneos sin RPC 032 conservan el calendario cerrado a identidades históricas',async()=>{
+  for(const code of ['PGRST202','42501']) {
+    const calls=[];
+    const lib=load('../src/lib/public-tournaments.ts',{'@/lib/config':{supabaseConfigured:()=>true},'@/lib/supabase/server':{createClient:async()=>({rpc:async(name)=>{calls.push(name);return {data:{competencias:[{campeon:'NO_PUBLICAR_DATOS_HISTORICOS'}]},error:{code}};}})}});
+    const result=await lib.getPublicTournaments(1);
+    assert.deepEqual(result,{data:{temporadas:[],jornadas:[],competencias:[],detalle:null},unavailable:true});
+    assert.deepEqual(calls,['consultar_torneos_publicos_032']);
+    assert.ok(!JSON.stringify(result).includes('NO_PUBLICAR'));
+  }
 });

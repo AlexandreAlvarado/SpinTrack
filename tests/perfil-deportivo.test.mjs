@@ -30,7 +30,7 @@ test('datos opcionales; payload explícito ignora identidad y permisos manipulad
 for (const invalid of [{ jugador_id: '-1' }, { club_id: '9007199254740992' }, { localidad_procedencia_id: 'x' }, { fecha_nacimiento: '2025-02-29' }, { fecha_nacimiento: '2999-01-01' }, { esperado: 'null' }, { esperado: '[' }]) {
   test(`rechaza datos inválidos ${JSON.stringify(invalid)}`, () => assert.equal(domain.validateSportsProfile(form(invalid)), null));
 }
-function actions({ denied = false, error = null } = {}) {
+function actions({ denied = false, error = null, legal = { PERSONAL_DATA_REVIEW_PENDING: false } } = {}) {
   const calls = [];
   const action = load('../src/app/panel/jugador/perfil/actions.ts', {
     'next/navigation': { redirect: path => { throw Error(path); } },
@@ -38,6 +38,7 @@ function actions({ denied = false, error = null } = {}) {
     '@/lib/auth': { requireProfile: async () => { if (denied) throw Error('sin sesión'); return { id: 'own' }; } },
     '@/lib/supabase/server': { createClient: async () => ({ rpc: async (name, payload) => { calls.push({ name, payload }); return { error }; } }) },
     '@/lib/perfil-deportivo': domain,
+    '@/lib/legal': legal,
   });
   return { action, calls };
 }
@@ -51,6 +52,14 @@ test('sin sesión no ejecuta escrituras', async () => {
   const { action, calls } = actions({ denied: true });
   await assert.rejects(() => action.saveSportsProfile(form()), /sin sesión/);
   assert.equal(calls.length, 0);
+});
+
+test('configuración real mantiene el veto de autoservicio; no se presenta la RPC 029 como UI habilitada', async () => {
+  const legal=load('../src/lib/legal.ts');
+  assert.equal(legal.PERSONAL_DATA_REVIEW_PENDING,true);
+  const {action,calls}=actions({legal});
+  await assert.rejects(()=>action.saveSportsProfile(form()),/error=revision/);
+  assert.deepEqual(calls,[]);
 });
 test('datos inválidos no ejecutan RPC', async () => {
   const { action, calls } = actions();
